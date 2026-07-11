@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.18
+
+- Added a Likes tab beside Saved using the shared collection layout.
+- Kept Likes synchronized with Like and Dislike actions across feed and lesson views.
+- Added full-lesson navigation and an empty state for liked cards.
+
 ## v0.17
 
 - Randomized cards within the For You interest groups instead of preserving JSON order.

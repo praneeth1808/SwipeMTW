@@ -35,6 +35,12 @@ struct MainTabView: View {
             }
             .tag(AppTab.feed)
 
+            CardCollectionView(kind: .liked, viewModel: viewModel)
+                .tabItem {
+                    Label("Likes", systemImage: "heart")
+                }
+                .tag(AppTab.likes)
+
             CardCollectionView(kind: .saved, viewModel: viewModel)
                 .tabItem {
                     Label("Saved", systemImage: "bookmark")
@@ -96,6 +102,7 @@ private struct AppAppearanceModifier: ViewModifier {
 
 private enum AppTab: Hashable {
     case feed
+    case likes
     case saved
     case research
     case settings

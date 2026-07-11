@@ -11,7 +11,7 @@ The feed uses a familiar, content-first vertical layout:
 - Topic, title, summary, key idea, and example carry more visual weight than artwork.
 - The entire lesson surface opens the full lesson; there is no dedicated open button.
 - Like, Save, Research, Show Again, and Dislike appear as separate controls on the right.
-- Feed, Saved, Research, and Settings form the primary navigation.
+- Feed, Likes, Saved, Research, and Settings form the primary navigation.
 
 ## Current Step 2 Scope
 
@@ -56,7 +56,7 @@ Step 2 renders one static sample card. Feed navigation, gestures, actions, JSON 
 ## Steps 12–15 Library and Preferences
 
 - Card actions, view counts, and last-viewed dates persist locally across launches.
-- Saved and Research tabs update from the shared card progress state.
+- Likes, Saved, and Research tabs update from the shared card progress state.
 - Selecting a collection row opens the complete Lesson Detail.
 - Settings provides System, Light, and Dark appearance modes.
 - Feed modes include For You, Random, and Surprise Me.

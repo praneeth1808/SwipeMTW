@@ -6,11 +6,14 @@
 import SwiftUI
 
 enum CardCollectionKind {
+    case liked
     case saved
     case research
 
     var title: String {
         switch self {
+        case .liked:
+            "Likes"
         case .saved:
             "Saved"
         case .research:
@@ -20,6 +23,8 @@ enum CardCollectionKind {
 
     var emptyTitle: String {
         switch self {
+        case .liked:
+            "No Liked Cards"
         case .saved:
             "No Saved Cards"
         case .research:
@@ -29,6 +34,8 @@ enum CardCollectionKind {
 
     var emptyDescription: String {
         switch self {
+        case .liked:
+            "Tap Like on a learning card to keep it here."
         case .saved:
             "Use Save in the Learning Action Rail to keep a card here."
         case .research:
@@ -38,6 +45,8 @@ enum CardCollectionKind {
 
     var systemImage: String {
         switch self {
+        case .liked:
+            "heart"
         case .saved:
             "bookmark"
         case .research:
@@ -54,6 +63,8 @@ struct CardCollectionView: View {
 
     private var cards: [LearningCard] {
         switch kind {
+        case .liked:
+            viewModel.likedCards
         case .saved:
             viewModel.savedCards
         case .research:

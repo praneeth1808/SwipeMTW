@@ -73,6 +73,10 @@ final class FeedViewModel: ObservableObject {
         sourceCards.filter { progress(for: $0).saved }
     }
 
+    var likedCards: [LearningCard] {
+        sourceCards.filter { progress(for: $0).liked }
+    }
+
     var researchCards: [LearningCard] {
         sourceCards.filter { progress(for: $0).research }
     }
