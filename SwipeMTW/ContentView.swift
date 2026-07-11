@@ -21,7 +21,7 @@ struct ContentView: View {
     var body: some View {
         switch loadState {
         case .loaded(let cards):
-            FeedView(cards: cards)
+            MainTabView(cards: cards)
         case .failed(let message):
             ContentUnavailableView(
                 "Cards Unavailable",
@@ -39,6 +39,10 @@ private enum CardLoadState {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        FeedView(
+            viewModel: FeedViewModel(cards: [.sample]),
+            settings: AppSettings(availableTopics: [LearningCard.sample.topic]),
+            onOpenSettings: {}
+        )
     }
 }

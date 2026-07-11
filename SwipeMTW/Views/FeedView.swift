@@ -3,19 +3,26 @@
 //  SwipeMTW
 //
 
+import Foundation
 import SwiftUI
 
 struct FeedView: View {
-    @StateObject private var viewModel: FeedViewModel
+    @ObservedObject var viewModel: FeedViewModel
+    @ObservedObject var settings: AppSettings
 
-    init(cards: [LearningCard]) {
-        _viewModel = StateObject(wrappedValue: FeedViewModel(cards: cards))
-    }
+    let onOpenSettings: () -> Void
+
+    @State private var dragOffset: CGFloat = 0
+    @State private var isTransitioning = false
+    @State private var selectedCard: LearningCard?
+
+    private let swipeThreshold: CGFloat = 80
+    private let transitionDuration = 0.28
 
     var body: some View {
         Group {
-            if let card = viewModel.currentCard {
-                feed(card: card)
+            if let currentCard = viewModel.currentCard {
+                carousel(currentCard: currentCard)
             } else {
                 ContentUnavailableView(
                     "No Cards",
@@ -25,22 +32,111 @@ struct FeedView: View {
             }
         }
         .background(Color(.systemBackground))
+        .fullScreenCover(item: $selectedCard) { card in
+            LessonDetailView(card: card, viewModel: viewModel)
+        }
     }
 
-    private func feed(card: LearningCard) -> some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                header
-                CardArtwork(topic: card.topic, artworkName: card.artworkName)
-                FeedCardContent(
-                    card: card,
-                    currentIndex: viewModel.currentIndex,
-                    cardCount: viewModel.cards.count,
-                    positionText: viewModel.positionText
-                )
+    private func carousel(currentCard: LearningCard) -> some View {
+        GeometryReader { geometry in
+            if isRunningForPreviews {
+                // Xcode's JIT preview runtime can recurse while resolving styles for
+                // three full, offset card trees. One card is enough for design review;
+                // the real app keeps the complete interactive carousel below.
+                cardPage(currentCard, isInteractive: true)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+            } else {
+                ZStack {
+                    if let previousCard = viewModel.previousCard {
+                        cardPage(previousCard, isInteractive: false)
+                            .offset(y: -geometry.size.height + dragOffset)
+                            .scaleEffect(cardScale(offset: -geometry.size.height + dragOffset, height: geometry.size.height))
+                    }
+
+                    if let nextCard = viewModel.nextCard {
+                        cardPage(nextCard, isInteractive: false)
+                            .offset(y: geometry.size.height + dragOffset)
+                            .scaleEffect(cardScale(offset: geometry.size.height + dragOffset, height: geometry.size.height))
+                    }
+
+                    cardPage(currentCard, isInteractive: true)
+                        .offset(y: dragOffset)
+                        .scaleEffect(cardScale(offset: dragOffset, height: geometry.size.height))
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
+                .contentShape(Rectangle())
+                .gesture(cardSwipeGesture(containerHeight: geometry.size.height))
+                .accessibilityAction(named: "Previous card") {
+                    viewModel.showPreviousCard()
+                }
+                .accessibilityAction(named: "Next card") {
+                    viewModel.showNextCard()
+                }
             }
         }
-        .scrollIndicators(.hidden)
+    }
+
+    private func cardScale(offset: CGFloat, height: CGFloat) -> CGFloat {
+        guard height > 0 else {
+            return 1
+        }
+
+        let distance = min(abs(offset) / height, 1)
+        return 1 - (distance * 0.035)
+    }
+
+    private var isRunningForPreviews: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+            || environment["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
+            || environment["DYLD_INSERT_LIBRARIES"]?.contains("__preview.dylib") == true
+    }
+
+    private func cardPage(_ card: LearningCard, isInteractive: Bool) -> some View {
+        let theme = CardTheme.forTopic(card.topic)
+
+        return ZStack(alignment: .topTrailing) {
+            VStack(spacing: 0) {
+                header
+                TopicArtworkView(card: card, theme: theme, height: 150)
+                FeedCardContent(
+                    card: card,
+                    accentColor: theme.accentColor
+                )
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard isInteractive, !isTransitioning, abs(dragOffset) < 4 else {
+                    return
+                }
+
+                selectedCard = card
+            }
+            .accessibilityAction(named: "Open lesson") {
+                guard isInteractive else {
+                    return
+                }
+
+                selectedCard = card
+            }
+
+            LearningActionRail(
+                progress: viewModel.progress(for: card),
+                accentColor: theme.accentColor,
+                onLike: { viewModel.toggleLike(for: card) },
+                onSave: { viewModel.toggleSave(for: card) },
+                onResearch: { viewModel.toggleResearch(for: card) },
+                onShowAgain: { viewModel.toggleShowAgain(for: card) },
+                onDislike: { viewModel.toggleDislike(for: card) }
+            )
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .padding(.trailing, 12)
+            .padding(.bottom, 44)
+            .allowsHitTesting(isInteractive && !isTransitioning)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(.systemBackground))
     }
 
     private var header: some View {
@@ -49,76 +145,150 @@ struct FeedView: View {
                 .font(.title2.bold())
 
             Spacer()
+
+            Menu {
+                Picker("Feed Mode", selection: $settings.feedMode) {
+                    ForEach(FeedMode.allCases) { mode in
+                        Label(mode.title, systemImage: mode.systemImage)
+                            .tag(mode)
+                    }
+                }
+
+                Divider()
+
+                Button(action: onOpenSettings) {
+                    Label("Interests & Settings", systemImage: "slider.horizontal.3")
+                }
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .background {
+                        Circle().fill(Color(.secondarySystemBackground))
+                    }
+            }
+            .accessibilityLabel("Feed options, \(settings.feedMode.title)")
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.leading, 24)
+        .padding(.trailing, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 6)
+    }
+
+    private func cardSwipeGesture(containerHeight: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 16)
+            .onChanged { value in
+                guard !isTransitioning else {
+                    return
+                }
+
+                guard abs(value.translation.height) > abs(value.translation.width) else {
+                    dragOffset = 0
+                    return
+                }
+
+                dragOffset = resistedTranslation(value.translation.height)
+            }
+            .onEnded { value in
+                guard !isTransitioning else {
+                    return
+                }
+
+                let verticalDistance = value.predictedEndTranslation.height
+                let isVerticalSwipe = abs(verticalDistance) > abs(value.predictedEndTranslation.width)
+
+                guard isVerticalSwipe, abs(verticalDistance) >= swipeThreshold else {
+                    snapCurrentCardBack()
+                    return
+                }
+
+                if verticalDistance < 0, viewModel.canShowNextCard {
+                    completeSwipe(.next, containerHeight: containerHeight)
+                } else if verticalDistance > 0, viewModel.canShowPreviousCard {
+                    completeSwipe(.previous, containerHeight: containerHeight)
+                } else {
+                    snapCurrentCardBack()
+                }
+            }
+    }
+
+    private func resistedTranslation(_ translation: CGFloat) -> CGFloat {
+        let isDraggingPastFirstCard = translation > 0 && !viewModel.canShowPreviousCard
+        let isDraggingPastLastCard = translation < 0 && !viewModel.canShowNextCard
+
+        if isDraggingPastFirstCard || isDraggingPastLastCard {
+            return translation * 0.2
+        }
+
+        return translation
+    }
+
+    private func snapCurrentCardBack() {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            dragOffset = 0
+        }
+    }
+
+    private func completeSwipe(_ direction: SwipeDirection, containerHeight: CGFloat) {
+        isTransitioning = true
+        let targetOffset = direction == .next ? -containerHeight : containerHeight
+
+        withAnimation(.easeInOut(duration: transitionDuration)) {
+            dragOffset = targetOffset
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(transitionDuration))
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+
+            withTransaction(transaction) {
+                switch direction {
+                case .next:
+                    viewModel.showNextCard()
+                case .previous:
+                    viewModel.showPreviousCard()
+                }
+
+                dragOffset = 0
+            }
+
+            isTransitioning = false
+        }
     }
 }
 
-private struct CardArtwork: View {
-    let topic: String
-    let artworkName: String?
-
-    var body: some View {
-        Group {
-            if let artworkName {
-                Image(artworkName)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                defaultArtwork
-            }
-        }
-        .frame(height: 180)
-        .clipped()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Artwork for \(topic)")
-    }
-
-    private var defaultArtwork: some View {
-        ZStack(alignment: .topLeading) {
-            LinearGradient(
-                colors: [Color.blue.opacity(0.17), Color.blue.opacity(0.05), .clear],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            Image(systemName: "square.stack.3d.up")
-                .font(.system(size: 96, weight: .ultraLight))
-                .foregroundStyle(Color.blue.opacity(0.5))
-                .padding(.leading, 42)
-                .padding(.top, 24)
-        }
-    }
+private enum SwipeDirection {
+    case next
+    case previous
 }
 
 private struct FeedCardContent: View {
     let card: LearningCard
-    let currentIndex: Int
-    let cardCount: Int
-    let positionText: String
+    let accentColor: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 12) {
             topicLabel
 
             Text(card.title)
                 .font(.largeTitle.bold())
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
 
             Text(card.summary)
                 .font(.title3)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .foregroundColor(.secondary)
+                .lineLimit(3)
 
             keyIdea
             example
             lessonMetadata
-            progress
         }
         .padding(.horizontal, 24)
-        .padding(.top, 12)
-        .padding(.bottom, 32)
+        .padding(.top, 10)
+        .padding(.bottom, 20)
     }
 
     private var topicLabel: some View {
@@ -126,10 +296,10 @@ private struct FeedCardContent: View {
             Text(card.topic.uppercased())
                 .font(.caption.weight(.semibold))
                 .tracking(2)
-                .foregroundStyle(.blue)
+                .foregroundColor(accentColor)
 
             Capsule()
-                .fill(.blue)
+                .fill(accentColor)
                 .frame(width: 38, height: 3)
         }
     }
@@ -138,24 +308,28 @@ private struct FeedCardContent: View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: "lightbulb.fill")
                 .font(.title2)
-                .foregroundStyle(.blue)
+                .foregroundColor(accentColor)
                 .frame(width: 44, height: 44)
-                .background(Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                .background {
+                    RoundedRectangle(cornerRadius: 12).fill(accentColor.opacity(0.1))
+                }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("KEY IDEA")
                     .font(.caption.weight(.semibold))
                     .tracking(1.5)
-                    .foregroundStyle(.blue)
+                    .foregroundColor(accentColor)
 
                 Text(card.keyIdea)
                     .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            RoundedRectangle(cornerRadius: 18).fill(accentColor.opacity(0.06))
+        }
     }
 
     @ViewBuilder
@@ -165,15 +339,17 @@ private struct FeedCardContent: View {
                 Text("EXAMPLE")
                     .font(.caption.weight(.semibold))
                     .tracking(1.5)
-                    .foregroundStyle(.teal)
+                    .foregroundColor(accentColor)
 
                 Text(example)
                     .font(.callout.monospaced())
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
+            .background {
+                RoundedRectangle(cornerRadius: 18).fill(accentColor.opacity(0.05))
+            }
         }
     }
 
@@ -183,30 +359,17 @@ private struct FeedCardContent: View {
             Text("\(card.estimatedMinutes) min lesson")
         }
         .font(.subheadline)
-        .foregroundStyle(.secondary)
+        .foregroundColor(.secondary)
     }
 
-    private var progress: some View {
-        HStack(spacing: 12) {
-            Text(positionText)
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 6) {
-                ForEach(0..<cardCount, id: \.self) { index in
-                    Capsule()
-                        .fill(index == currentIndex ? Color.blue : Color.secondary.opacity(0.2))
-                        .frame(width: index == currentIndex ? 34 : 24, height: 3)
-                }
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Card \(currentIndex + 1) of \(cardCount)")
-    }
 }
 
 struct FeedView_Previews: PreviewProvider {
     static var previews: some View {
-        FeedView(cards: [.sample])
+        FeedView(
+            viewModel: FeedViewModel(cards: [.sample]),
+            settings: AppSettings(availableTopics: [LearningCard.sample.topic]),
+            onOpenSettings: {}
+        )
     }
 }
