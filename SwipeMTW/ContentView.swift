@@ -8,17 +8,37 @@
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+    private let loadState: CardLoadState
+
+    init(loader: CardLoader = CardLoader()) {
+        do {
+            loadState = .loaded(try loader.loadCards())
+        } catch {
+            loadState = .failed(error.localizedDescription)
         }
-        .padding()
+    }
+
+    var body: some View {
+        switch loadState {
+        case .loaded(let cards):
+            FeedView(cards: cards)
+        case .failed(let message):
+            ContentUnavailableView(
+                "Cards Unavailable",
+                systemImage: "rectangle.stack.badge.exclamationmark",
+                description: Text(message)
+            )
+        }
     }
 }
 
-#Preview {
-    ContentView()
+private enum CardLoadState {
+    case loaded([LearningCard])
+    case failed(String)
+}
+
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
 }

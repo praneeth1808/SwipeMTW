@@ -1,0 +1,35 @@
+[
+  {
+    "id": "1",
+    "topic": "Data Engineering",
+    "title": "Partition Pruning",
+    "summary": "Partition pruning improves query performance by preventing a data engine from scanning storage partitions that cannot contain matching rows. It can reduce bytes read, execution time, and compute cost without changing the result of the query.",
+    "keyIdea": "Filter directly on the partition column using values and expressions the query optimizer can understand before execution. When the engine knows which partitions may contain matching rows, it can skip every unrelated partition instead of opening and scanning the entire dataset. The fewer partitions it reads, the less work the query performs.",
+    "example": "SELECT user_id, event_name, event_timestamp\nFROM analytics.events\nWHERE event_date BETWEEN '2026-07-01'\n  AND '2026-07-11'\n  AND event_name = 'lesson_opened';",
+    "content": "Partitioning divides a large dataset into smaller physical or logical storage units based on a partition column. Common partition columns include an event date, ingestion date, region, tenant identifier, or another value frequently used to restrict queries. The rows still behave like one table to the person writing SQL, but the storage engine can manage and read each partition separately.\n\nPartition pruning happens when the query optimizer determines that some partitions cannot possibly satisfy the query filter. If a table is partitioned by event_date and a query requests only July 11, 2026, the engine can open that date's partition and ignore all other dates. On a table containing years of events, this can change a full-table scan into a small and predictable read.\n\nThe filter normally needs to reference the partition column in a form the optimizer recognizes. A direct equality, range, or IN condition is usually easiest to prune. Wrapping the partition column in a function, converting it to another type, or comparing it through a complex expression can prevent some engines from identifying the required partitions. For example, filtering event_date directly is generally safer than applying a formatting function to event_date and filtering the formatted result.\n\nPartition pruning is not the same as filtering rows after they are read. A normal row filter may remove unwanted records during execution, but the engine might still scan every underlying file first. Pruning avoids opening unrelated partitions at all. Query plans and execution details often report the partitions selected, partitions scanned, or bytes read, which makes them useful for confirming that pruning occurred.\n\nGood partition design depends on real access patterns. A column with too few distinct values may create partitions that remain very large. A column with extremely high cardinality may create too many tiny partitions and increase metadata overhead. Time-based partitioning is common because analytical queries often request recent days or bounded date ranges, but it is only effective when queries consistently include the time partition filter.\n\nA practical review process is to identify the partition column, inspect the query predicate, check whether the predicate can be evaluated before reading the data, and compare the execution plan with and without that filter. Also compare bytes scanned and elapsed time. The goal is not merely to add a WHERE clause; it is to give the optimizer enough information to exclude storage before expensive reading begins.\n\nRemember the core rule: filter directly on the partition column whenever possible, use bounded values, and verify the query plan. Partition pruning is powerful because it removes work rather than making unnecessary work slightly faster.",
+    "estimatedMinutes": 6,
+    "tags": ["SQL", "Performance", "Query Optimization", "Data Warehousing", "Partitioning", "Cost Reduction"]
+  },
+  {
+    "id": "2",
+    "topic": "Learning Science",
+    "title": "Spaced Repetition",
+    "summary": "Review information at increasing intervals to strengthen long-term recall.",
+    "keyIdea": "Schedule each review near the point when the information would otherwise be forgotten.",
+    "example": "Review after 1, 3, 7, and 14 days.",
+    "content": "A successful recall strengthens memory and allows the next review to happen later. Difficult material returns sooner, while familiar material uses progressively longer intervals.",
+    "estimatedMinutes": 2,
+    "tags": ["Memory", "Study Skills", "Learning"]
+  },
+  {
+    "id": "3",
+    "topic": "Decision Making",
+    "title": "Opportunity Cost",
+    "summary": "Every choice also includes the value of the best alternative you leave behind.",
+    "keyIdea": "Compare a decision with its strongest realistic alternative, not with doing nothing.",
+    "example": "One hour spent on task A is one less hour available for task B.",
+    "content": "Opportunity cost makes hidden tradeoffs visible. Evaluate the expected benefit of a choice against the most valuable realistic option that the same time, money, or attention could support.",
+    "estimatedMinutes": 2,
+    "tags": ["Tradeoffs", "Economics", "Decisions"]
+  }
+]
