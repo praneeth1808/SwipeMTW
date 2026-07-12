@@ -7,6 +7,12 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    let dataFileURL: URL?
+
+    init(settings: AppSettings, dataFileURL: URL? = nil) {
+        self.settings = settings
+        self.dataFileURL = dataFileURL
+    }
 
     var body: some View {
         NavigationStack {
@@ -49,6 +55,13 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+
+                if let dataFileURL {
+                    Section("Data File") {
+                        LabeledContent("Location", value: "On My iPhone/SwipeMTW")
+                        LabeledContent("File", value: dataFileURL.lastPathComponent)
+                    }
                 }
             }
             .navigationTitle("Settings")

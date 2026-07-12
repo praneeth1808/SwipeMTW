@@ -28,4 +28,16 @@ Typography, font sizes, raw colors, spacing, and animation values are presentati
 - `viewCount`: Number of times the card has become current in the feed.
 - `lastViewed`: Most recent date the card became current.
 
-Progress is encoded locally in `UserDefaults` and restored when the app launches.
+## SwipeMTWData.json
+
+The app's durable learning data lives in one versioned JSON document:
+
+- `schemaVersion`: Data-file format version used for safe future migrations.
+- `cards`: Complete learning-card content loaded by the feed.
+- `progress`: A dictionary keyed by card ID containing Like, Save, Research, Dislike, Show Again, and viewing state.
+
+On first launch, SwipeMTW creates `SwipeMTWData.json` in its Documents directory using the bundled cards and any progress previously stored in `UserDefaults`. On later launches, the existing document is loaded and is never replaced by bundled content.
+
+Every progress change reads the current document, updates `progress`, and atomically writes the same file. This keeps Saved, Likes, and Research state alongside the learning content.
+
+With local file sharing enabled, the document is available in Files under **On My iPhone → SwipeMTW → SwipeMTWData.json**.

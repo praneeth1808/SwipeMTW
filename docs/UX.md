@@ -72,3 +72,11 @@ Step 2 renders one static sample card. Feed navigation, gestures, actions, JSON 
 - Opening a lesson reveals a persistent bottom action bar with the same state as the feed rail.
 - Feed content begins at the top rather than being vertically centered by the action rail.
 - Default and interest-prioritized feeds avoid presenting cards in source-file order.
+
+## Step 18 Local Data File
+
+- SwipeMTW creates one user-visible JSON document when none exists.
+- Existing documents remain authoritative across later launches and app upgrades.
+- Card content and all per-card learning actions share the same document.
+- The Settings screen identifies the Files app location and filename.
+- Invalid or unsupported documents show an error instead of being silently overwritten.
