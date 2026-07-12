@@ -10,16 +10,26 @@ struct LessonDetailView: View {
 
     let card: LearningCard
     @ObservedObject var viewModel: FeedViewModel
+    @State private var openedAt: Date?
 
     private var theme: CardTheme {
-        CardTheme.forTopic(card.topic)
+        CardTheme.forTopic(
+            card.topic,
+            symbolName: viewModel.symbolName(for: card.topic),
+            colorHex: viewModel.colorHex(for: card.topic)
+        )
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    TopicArtworkView(card: card, theme: theme, height: 210)
+                    TopicArtworkView(
+                        card: card,
+                        theme: theme,
+                        height: 210,
+                        usesCustomSymbol: viewModel.symbolName(for: card.topic) != nil
+                    )
                     lessonContent
                 }
             }
@@ -47,6 +57,19 @@ struct LessonDetailView: View {
                     onDislike: { viewModel.toggleDislike(for: card) }
                 )
             }
+        }
+        .onAppear {
+            guard openedAt == nil else { return }
+            openedAt = .now
+            viewModel.recordLessonOpened(for: card)
+        }
+        .onDisappear {
+            guard let openedAt else { return }
+            viewModel.recordLessonClosed(
+                for: card,
+                seconds: Date().timeIntervalSince(openedAt)
+            )
+            self.openedAt = nil
         }
     }
 
@@ -84,11 +107,69 @@ struct LessonDetailView: View {
                     .textSelection(.enabled)
             }
 
+            understandingCheck
             tags
         }
         .padding(.horizontal, 24)
         .padding(.top, 18)
         .padding(.bottom, 40)
+    }
+
+    private var understandingCheck: some View {
+        let progress = viewModel.progress(for: card)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("HOW WELL DID YOU UNDERSTAND THIS?")
+                    .font(.caption.weight(.semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(theme.accentColor)
+
+                Text("Your answer schedules the next useful review.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(UnderstandingRating.allCases) { rating in
+                Button {
+                    viewModel.assessUnderstanding(rating, for: card)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: rating.systemImage)
+                            .frame(width: 26)
+                        Text(rating.title)
+                            .font(.body.weight(.semibold))
+                        Spacer()
+                        if progress.lastAssessment == rating {
+                            Image(systemName: "checkmark.circle.fill")
+                        }
+                    }
+                    .foregroundStyle(
+                        progress.lastAssessment == rating ? theme.accentColor : Color.primary
+                    )
+                    .padding(.horizontal, 15)
+                    .frame(minHeight: 50)
+                    .background(
+                        progress.lastAssessment == rating
+                            ? theme.accentColor.opacity(0.11)
+                            : Color(.secondarySystemBackground),
+                        in: RoundedRectangle(cornerRadius: 14)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let nextReviewDate = progress.nextReviewDate {
+                Label(
+                    "Next review \(nextReviewDate.formatted(date: .abbreviated, time: .omitted))",
+                    systemImage: "calendar"
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(18)
+        .background(theme.accentColor.opacity(0.045), in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var lessonMetadata: some View {

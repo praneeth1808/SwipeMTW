@@ -87,7 +87,11 @@ struct CardCollectionView: View {
                             Button {
                                 selectedCard = card
                             } label: {
-                                CardCollectionRow(card: card)
+                                CardCollectionRow(
+                                    card: card,
+                                    symbolName: viewModel.symbolName(for: card.topic),
+                                    colorHex: viewModel.colorHex(for: card.topic)
+                                )
                             }
                             .buttonStyle(.plain)
                         }
@@ -122,9 +126,11 @@ struct CardCollectionView: View {
 
 private struct CardCollectionRow: View {
     let card: LearningCard
+    let symbolName: String?
+    let colorHex: String?
 
     private var theme: CardTheme {
-        CardTheme.forTopic(card.topic)
+        CardTheme.forTopic(card.topic, symbolName: symbolName, colorHex: colorHex)
     }
 
     var body: some View {

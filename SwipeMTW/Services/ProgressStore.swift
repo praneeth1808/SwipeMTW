@@ -13,6 +13,12 @@ protocol ProgressStoring {
         progress: [String: UserProgress],
         collectionOrder: CollectionOrder
     )
+    func loadTopicSymbols() -> [String: String]
+    func saveTopicSymbols(_ topicSymbols: [String: String])
+    func loadTopicColors() -> [String: String]
+    func saveTopicColors(_ topicColors: [String: String])
+    func loadAnalytics() -> UsageAnalytics
+    func saveAnalytics(_ analytics: UsageAnalytics)
 }
 
 extension ProgressStoring {
@@ -26,6 +32,20 @@ extension ProgressStoring {
     ) {
         saveProgress(progress)
     }
+
+    func loadTopicSymbols() -> [String: String] {
+        [:]
+    }
+
+    func saveTopicSymbols(_ topicSymbols: [String: String]) {}
+
+    func loadTopicColors() -> [String: String] { [:] }
+
+    func saveTopicColors(_ topicColors: [String: String]) {}
+
+    func loadAnalytics() -> UsageAnalytics { UsageAnalytics() }
+
+    func saveAnalytics(_ analytics: UsageAnalytics) {}
 }
 
 struct UserDefaultsProgressStore: ProgressStoring {

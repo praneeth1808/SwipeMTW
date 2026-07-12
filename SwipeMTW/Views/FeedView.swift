@@ -25,9 +25,9 @@ struct FeedView: View {
                 carousel(currentCard: currentCard)
             } else {
                 ContentUnavailableView(
-                    "No Cards",
-                    systemImage: "rectangle.stack",
-                    description: Text("Add at least one learning card to cards.json.")
+                    viewModel.hasCardsAwaitingReview ? "You're Caught Up" : "No Cards",
+                    systemImage: viewModel.hasCardsAwaitingReview ? "checkmark.circle" : "rectangle.stack",
+                    description: Text(emptyFeedDescription)
                 )
             }
         }
@@ -35,6 +35,14 @@ struct FeedView: View {
         .fullScreenCover(item: $selectedCard) { card in
             LessonDetailView(card: card, viewModel: viewModel)
         }
+    }
+
+    private var emptyFeedDescription: String {
+        if let nextReviewDate = viewModel.nextScheduledReviewDate,
+           viewModel.hasCardsAwaitingReview {
+            return "Your next scheduled review is \(nextReviewDate.formatted(date: .abbreviated, time: .shortened))."
+        }
+        return "Import at least one learning card from Settings."
     }
 
     private func carousel(currentCard: LearningCard) -> some View {
@@ -94,15 +102,25 @@ struct FeedView: View {
     }
 
     private func cardPage(_ card: LearningCard, isInteractive: Bool) -> some View {
-        let theme = CardTheme.forTopic(card.topic)
+        let theme = CardTheme.forTopic(
+            card.topic,
+            symbolName: viewModel.symbolName(for: card.topic),
+            colorHex: viewModel.colorHex(for: card.topic)
+        )
 
         return ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
                 header
-                TopicArtworkView(card: card, theme: theme, height: 150)
+                TopicArtworkView(
+                    card: card,
+                    theme: theme,
+                    height: 150,
+                    usesCustomSymbol: viewModel.symbolName(for: card.topic) != nil
+                )
                 FeedCardContent(
                     card: card,
-                    accentColor: theme.accentColor
+                    accentColor: theme.accentColor,
+                    progress: viewModel.progress(for: card)
                 )
             }
             .contentShape(Rectangle())
@@ -267,6 +285,7 @@ private enum SwipeDirection {
 private struct FeedCardContent: View {
     let card: LearningCard
     let accentColor: Color
+    let progress: UserProgress
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -354,9 +373,10 @@ private struct FeedCardContent: View {
     }
 
     private var lessonMetadata: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "clock")
-            Text("\(card.estimatedMinutes) min lesson")
+        HStack(spacing: 12) {
+            Label("\(card.estimatedMinutes) min lesson", systemImage: "clock")
+            Label(progress.learningStatus.title, systemImage: progress.learningStatus.systemImage)
+                .foregroundStyle(accentColor)
         }
         .font(.subheadline)
         .foregroundColor(.secondary)

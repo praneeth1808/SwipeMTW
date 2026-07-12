@@ -6,17 +6,32 @@
 import Combine
 import Foundation
 
+struct TopicAnalytics: Identifiable, Equatable {
+    let topic: String
+    let cardCount: Int
+    let visitedCount: Int
+    let readCount: Int
+    let seconds: Double
+
+    var id: String { topic }
+}
+
 @MainActor
 final class FeedViewModel: ObservableObject {
     @Published private(set) var cards: [LearningCard]
     @Published private(set) var currentIndex = 0
     @Published private(set) var progressByCardID: [String: UserProgress]
     @Published private(set) var collectionOrder: CollectionOrder
+    @Published private(set) var topicSymbols: [String: String]
+    @Published private(set) var topicColors: [String: String]
+    @Published private(set) var analytics: UsageAnalytics
 
     private var sourceCards: [LearningCard]
     private let progressStore: ProgressStoring
     private var feedMode: FeedMode
     private var selectedTopics: Set<String>
+    private var appSessionStartedAt: Date?
+    private var hasCountedCurrentLaunch = false
 
     convenience init(
         cards: [LearningCard],
@@ -37,18 +52,24 @@ final class FeedViewModel: ObservableObject {
         feedMode: FeedMode = .forYou,
         selectedTopics: Set<String> = []
     ) {
+        let loadedProgress = progressStore.loadProgress()
         sourceCards = cards
         self.progressStore = progressStore
         self.feedMode = feedMode
         self.selectedTopics = selectedTopics
-        progressByCardID = progressStore.loadProgress()
+        progressByCardID = loadedProgress
         collectionOrder = progressStore.loadCollectionOrder()
+        topicSymbols = progressStore.loadTopicSymbols()
+        topicColors = progressStore.loadTopicColors()
+        analytics = progressStore.loadAnalytics()
         self.cards = FeedViewModel.orderedCards(
             from: cards,
             mode: feedMode,
-            selectedTopics: selectedTopics
+            selectedTopics: selectedTopics,
+            progress: loadedProgress
         )
         reconcileCollectionOrder()
+        ensureTopicColors()
         ensureNextCardAvailable()
         recordCurrentCardView()
     }
@@ -70,7 +91,7 @@ final class FeedViewModel: ObservableObject {
     }
 
     var canShowNextCard: Bool {
-        !sourceCards.isEmpty
+        currentCard != nil
     }
 
     var savedCards: [LearningCard] {
@@ -96,6 +117,166 @@ final class FeedViewModel: ObservableObject {
 
     var availableTopics: [String] {
         Array(Set(sourceCards.map(\.topic))).sorted()
+    }
+
+    var totalCardCount: Int {
+        sourceCards.count
+    }
+
+    var allCards: [LearningCard] {
+        sourceCards
+    }
+
+    var hasCardsAwaitingReview: Bool {
+        !sourceCards.isEmpty && cards.isEmpty
+    }
+
+    var nextScheduledReviewDate: Date? {
+        sourceCards.compactMap { progress(for: $0).nextReviewDate }.min()
+    }
+
+    var reviewsDueCount: Int {
+        sourceCards.filter {
+            guard let date = progress(for: $0).nextReviewDate else { return false }
+            return date <= .now
+        }.count
+    }
+
+    func cardCount(with status: LearningStatus) -> Int {
+        sourceCards.filter { progress(for: $0).learningStatus == status }.count
+    }
+
+    var uniqueVisitedCount: Int {
+        sourceCards.filter { progress(for: $0).viewCount > 0 }.count
+    }
+
+    var totalVisitCount: Int {
+        sourceCards.reduce(0) { $0 + progress(for: $1).viewCount }
+    }
+
+    var lessonOpenCount: Int {
+        sourceCards.reduce(0) { $0 + progress(for: $1).openCount }
+    }
+
+    var uniqueReadCount: Int {
+        sourceCards.filter { progress(for: $0).completedReadCount > 0 }.count
+    }
+
+    var lessonReadCount: Int {
+        sourceCards.reduce(0) { $0 + progress(for: $1).completedReadCount }
+    }
+
+    var savedUnreadCount: Int {
+        sourceCards.filter {
+            let cardProgress = progress(for: $0)
+            return (cardProgress.saved || cardProgress.research)
+                && cardProgress.completedReadCount == 0
+        }.count
+    }
+
+    var totalLearningSeconds: Double {
+        sourceCards.reduce(0) { $0 + progress(for: $1).totalReadSeconds }
+    }
+
+    var currentTotalAppSeconds: Double {
+        analytics.totalAppSeconds + (appSessionStartedAt.map { Date().timeIntervalSince($0) } ?? 0)
+    }
+
+    var topicAnalytics: [TopicAnalytics] {
+        availableTopics.map { topic in
+            let topicCards = sourceCards.filter { $0.topic == topic }
+            return TopicAnalytics(
+                topic: topic,
+                cardCount: topicCards.count,
+                visitedCount: topicCards.filter { progress(for: $0).viewCount > 0 }.count,
+                readCount: topicCards.filter { progress(for: $0).completedReadCount > 0 }.count,
+                seconds: analytics.topicSeconds[topic] ?? 0
+            )
+        }
+    }
+
+    func symbolName(for topic: String) -> String? {
+        topicSymbols[topic]
+    }
+
+    func setSymbolName(_ symbolName: String, for topic: String) {
+        topicSymbols[topic] = symbolName
+        progressStore.saveTopicSymbols(topicSymbols)
+    }
+
+    func colorHex(for topic: String) -> String? {
+        topicColors[topic]
+    }
+
+    func setColorHex(_ colorHex: String, for topic: String) {
+        topicColors[topic] = colorHex.uppercased()
+        progressStore.saveTopicColors(topicColors)
+    }
+
+    func startAppSession() {
+        guard appSessionStartedAt == nil else { return }
+        appSessionStartedAt = .now
+
+        if !hasCountedCurrentLaunch {
+            analytics.launchCount += 1
+            hasCountedCurrentLaunch = true
+            progressStore.saveAnalytics(analytics)
+        }
+    }
+
+    func endAppSession() {
+        guard let startedAt = appSessionStartedAt else { return }
+        analytics.totalAppSeconds += max(0, Date().timeIntervalSince(startedAt))
+        appSessionStartedAt = nil
+        progressStore.saveAnalytics(analytics)
+    }
+
+    func refreshAnalyticsSnapshot() {
+        guard appSessionStartedAt != nil else { return }
+        endAppSession()
+        startAppSession()
+    }
+
+    func recordLessonOpened(for card: LearningCard) {
+        updateProgress(for: card) { progress in
+            progress.openCount += 1
+            progress.lastOpened = .now
+        }
+    }
+
+    func recordLessonClosed(for card: LearningCard, seconds: Double) {
+        let duration = max(0, seconds)
+        guard duration >= 1 else { return }
+        let readThreshold = max(15, Double(card.estimatedMinutes) * 30)
+
+        updateProgress(for: card) { progress in
+            progress.totalReadSeconds += duration
+            if duration >= readThreshold {
+                progress.completedReadCount += 1
+            }
+        }
+        analytics.topicSeconds[card.topic, default: 0] += duration
+        progressStore.saveAnalytics(analytics)
+    }
+
+    func resetStatistics() {
+        for cardID in Array(progressByCardID.keys) {
+            guard var progress = progressByCardID[cardID] else { continue }
+            progress.viewCount = 0
+            progress.lastViewed = nil
+            progress.openCount = 0
+            progress.completedReadCount = 0
+            progress.totalReadSeconds = 0
+            progress.lastOpened = nil
+            progressByCardID[cardID] = progress
+        }
+
+        analytics = UsageAnalytics()
+        if appSessionStartedAt != nil {
+            appSessionStartedAt = .now
+        }
+        persistState()
+        progressStore.saveAnalytics(analytics)
     }
 
     func showPreviousCard() {
@@ -165,7 +346,49 @@ final class FeedViewModel: ObservableObject {
     func toggleShowAgain(for card: LearningCard) {
         updateProgress(for: card) { progress in
             progress.showAgain.toggle()
+            if progress.showAgain {
+                progress.learningStatus = .needsReview
+                progress.nextReviewDate = .now
+            } else if progress.learningStatus == .needsReview {
+                progress.learningStatus = .viewed
+                progress.nextReviewDate = nil
+            }
         }
+        resetFeedForCurrentPreferences()
+        recordCurrentCardView()
+    }
+
+    func assessUnderstanding(_ rating: UnderstandingRating, for card: LearningCard) {
+        let priorStatus = progress(for: card).learningStatus
+        let calendar = Calendar.current
+        let intervalDays: Int
+
+        switch rating {
+        case .reviewAgain:
+            intervalDays = 1
+        case .mostlyUnderstood:
+            intervalDays = priorStatus == .understood ? 7 : 3
+        case .mastered:
+            intervalDays = 28
+        }
+
+        updateProgress(for: card) { progress in
+            progress.lastAssessment = rating
+            progress.showAgain = rating == .reviewAgain
+            progress.learningStatus = switch rating {
+            case .reviewAgain: .needsReview
+            case .mostlyUnderstood: .understood
+            case .mastered: .mastered
+            }
+            progress.nextReviewDate = calendar.date(
+                byAdding: .day,
+                value: intervalDays,
+                to: .now
+            )
+        }
+
+        resetFeedForCurrentPreferences()
+        recordCurrentCardView()
     }
 
     func moveLikedCards(from offsets: IndexSet, to destination: Int) {
@@ -195,15 +418,32 @@ final class FeedViewModel: ObservableObject {
         )
     }
 
-    func importCards(from data: Data) throws -> CardImportResult {
+    func previewImport(from data: Data) throws -> CardImportPreview {
+        guard let dataStore = progressStore as? LocalJSONDataStore else {
+            throw LocalJSONDataStoreError.invalidImport
+        }
+        return try dataStore.previewImport(from: data)
+    }
+
+    func importCards(
+        from data: Data,
+        duplicateStrategy: DuplicateImportStrategy = .skipDuplicates
+    ) throws -> CardImportResult {
         guard let dataStore = progressStore as? LocalJSONDataStore else {
             throw LocalJSONDataStoreError.invalidImport
         }
 
-        let result = try dataStore.mergeCards(from: data)
+        let result = try dataStore.mergeCards(
+            from: data,
+            duplicateStrategy: duplicateStrategy
+        )
         progressByCardID = dataStore.loadProgress()
         collectionOrder = dataStore.loadCollectionOrder()
+        topicSymbols = dataStore.loadTopicSymbols()
+        topicColors = dataStore.loadTopicColors()
+        analytics = dataStore.loadAnalytics()
         sourceCards = result.cards
+        ensureTopicColors()
         resetFeedForCurrentPreferences()
         reconcileCollectionOrder()
         persistState()
@@ -217,10 +457,33 @@ final class FeedViewModel: ObservableObject {
         }
 
         sourceCards = try dataStore.loadCards()
+        topicSymbols = dataStore.loadTopicSymbols()
+        topicColors = dataStore.loadTopicColors()
+        analytics = dataStore.loadAnalytics()
+        ensureTopicColors()
         resetFeedForCurrentPreferences()
         reconcileCollectionOrder()
         persistState()
         return availableTopics
+    }
+
+    func clearAllData() throws {
+        guard let dataStore = progressStore as? LocalJSONDataStore else {
+            return
+        }
+
+        try dataStore.clearAllData()
+        sourceCards = []
+        progressByCardID = [:]
+        collectionOrder = CollectionOrder()
+        topicSymbols = [:]
+        topicColors = [:]
+        analytics = UsageAnalytics()
+        if appSessionStartedAt != nil {
+            appSessionStartedAt = .now
+        }
+        cards = []
+        currentIndex = 0
     }
 
     private func card(at index: Int) -> LearningCard? {
@@ -320,11 +583,31 @@ final class FeedViewModel: ObservableObject {
         )
     }
 
+    private func ensureTopicColors() {
+        var usedColors = Set(topicColors.values.map { $0.uppercased() })
+        var didChange = false
+
+        for topic in availableTopics where topicColors[topic] == nil {
+            let color = TopicColorPalette.automaticColor(
+                for: topic,
+                avoiding: usedColors
+            )
+            topicColors[topic] = color
+            usedColors.insert(color.uppercased())
+            didChange = true
+        }
+
+        if didChange {
+            progressStore.saveTopicColors(topicColors)
+        }
+    }
+
     private func resetFeedForCurrentPreferences() {
         cards = FeedViewModel.orderedCards(
             from: sourceCards,
             mode: feedMode,
-            selectedTopics: selectedTopics
+            selectedTopics: selectedTopics,
+            progress: progressByCardID
         )
         currentIndex = 0
         ensureNextCardAvailable()
@@ -339,8 +622,11 @@ final class FeedViewModel: ObservableObject {
             var nextCycle = FeedViewModel.orderedCards(
                 from: sourceCards,
                 mode: feedMode,
-                selectedTopics: selectedTopics
+                selectedTopics: selectedTopics,
+                progress: progressByCardID
             )
+
+            guard !nextCycle.isEmpty else { break }
 
             if nextCycle.count > 1,
                nextCycle.first?.id == cards.last?.id {
@@ -373,13 +659,18 @@ final class FeedViewModel: ObservableObject {
         updateProgress(for: currentCard) { progress in
             progress.viewCount += 1
             progress.lastViewed = .now
+            if progress.learningStatus == .new {
+                progress.learningStatus = .viewed
+            }
         }
     }
 
     private static func orderedCards(
         from cards: [LearningCard],
         mode: FeedMode,
-        selectedTopics: Set<String>
+        selectedTopics: Set<String>,
+        progress: [String: UserProgress],
+        now: Date = .now
     ) -> [LearningCard] {
         let filteredCards: [LearningCard]
 
@@ -389,17 +680,24 @@ final class FeedViewModel: ObservableObject {
             filteredCards = cards.filter { selectedTopics.contains($0.topic) }
         }
 
+        let dueCards = filteredCards.filter { card in
+            guard let nextReviewDate = progress[card.id]?.nextReviewDate else {
+                return true
+            }
+            return nextReviewDate <= now
+        }
+
         switch mode {
         case .forYou:
-            return filteredCards.shuffled()
+            return dueCards.shuffled()
         case .random:
-            return filteredCards.shuffled()
+            return dueCards.shuffled()
         case .surpriseMe:
-            guard let surprise = filteredCards.randomElement() else {
+            guard let surprise = dueCards.randomElement() else {
                 return []
             }
 
-            return [surprise] + filteredCards.filter { $0.id != surprise.id }.shuffled()
+            return [surprise] + dueCards.filter { $0.id != surprise.id }.shuffled()
         }
     }
 }

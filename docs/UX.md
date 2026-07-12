@@ -92,9 +92,41 @@ Step 2 renders one static sample card. Feed navigation, gestures, actions, JSON 
 ## Step 20 Import and Continuous Feed
 
 - Settings imports and merges a full SwipeMTW document or a plain card-array JSON file.
-- Imported cards with new IDs append; matching IDs are skipped without modifying existing content or actions.
+- Every imported card appends with a newly generated sequential ID; uploaded IDs never replace or block content.
 - Imported action cards always appear at the bottom of Likes, Saved, and Research without changing existing top priorities.
+- Import has no card-count limit; the result shows the assigned ID range and total library size.
+- Settings provides a confirmed Clear All Cards & Actions operation while keeping an empty JSON ready for import.
 - Newly imported topics appear in Interests immediately.
 - The feed shuffles a fresh cycle before reaching its last card and repeats indefinitely.
 - A new cycle avoids repeating the same card at the boundary when multiple cards exist.
 - A bounded buffer preserves recent backward navigation without unbounded memory growth.
+
+## Step 27 Topic Artwork and Library Summary
+
+- Settings generates one artwork row for every unique topic in the live JSON.
+- Every topic can choose from about 120 categorized and searchable SF Symbols.
+- A selected topic symbol updates feed banners, opened lessons, and collection rows.
+- Artwork selections persist in `SwipeMTWData.json` by topic name.
+- The final Settings section shows the live total card count and topic-category count.
+
+## Step 28 Topic Themes and Learning Analytics
+
+- Each live JSON topic can choose both an SF Symbol and a theme color.
+- Automatic colors begin from familiar topic families (for example, learning uses violet, data uses blue, and engineering uses teal), then select an unused sufficiently distinct alternative when needed.
+- The topic color consistently controls its logo, top artwork treatment, labels, lesson blocks, and collection-row accents.
+- Learning Analytics opens from Settings so Feed, Likes, Saved, Research, and Settings remain the five direct tabs.
+- The dashboard emphasizes actionable learning signals: unique cards visited, lessons opened/read, library coverage, lesson time, total app time, topic focus, and unread learning backlog.
+- Career Signals identify the strongest focus area, the least-covered topic, and the next useful queue action rather than adding decorative vanity metrics.
+- Analytics is stored only in the user's local `SwipeMTWData.json` file.
+- A confirmed Reset Statistics action clears visits, reads, and timing while preserving cards, learning actions, collection priorities, symbols, and colors.
+
+## Step 29 Learning System and Scalable Library
+
+- Every card progresses through New, Viewed, Understood, Needs Review, and Mastered states.
+- The lesson ends with one understanding choice: Review Again, Mostly Understood, or Mastered.
+- Review Again returns in about one day; Mostly Understood returns in about three days and then seven days; Mastered returns in about 28 days.
+- Scheduled future cards stay out of the feed until due. When nothing is due, the feed shows the next review time.
+- Card Library opens from Settings and searches titles, summaries, and tags across the full library.
+- Filters cover topic, tag, learning status, action, reading time, newest, least/most viewed, and recently opened.
+- Imports detect content duplicates using normalized topic plus title before changing the local file.
+- Skip Duplicate Content is the safe default. Import as Another Copy, Replace Existing Content, and Review Conflicts remain explicit alternatives.

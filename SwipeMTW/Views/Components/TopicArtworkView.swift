@@ -5,19 +5,35 @@
 
 import SwiftUI
 
+@MainActor
 struct CardTheme {
     let accentColor: Color
     let symbolName: String
 
-    static func forTopic(_ topic: String) -> CardTheme {
+    static func forTopic(
+        _ topic: String,
+        symbolName: String? = nil,
+        colorHex: String? = nil
+    ) -> CardTheme {
+        let defaultSymbol: String
+        let accentColor: Color
+
         switch topic.lowercased() {
         case "learning science":
-            CardTheme(accentColor: .purple, symbolName: "brain.head.profile")
+            accentColor = .purple
+            defaultSymbol = "brain.head.profile"
         case "decision making":
-            CardTheme(accentColor: .orange, symbolName: "signpost.right.and.left")
+            accentColor = .orange
+            defaultSymbol = "signpost.right.and.left"
         default:
-            CardTheme(accentColor: .blue, symbolName: "square.stack.3d.up")
+            accentColor = .blue
+            defaultSymbol = "square.stack.3d.up"
         }
+
+        return CardTheme(
+            accentColor: colorHex.map(Color.init(hex:)) ?? accentColor,
+            symbolName: symbolName ?? defaultSymbol
+        )
     }
 }
 
@@ -25,10 +41,23 @@ struct TopicArtworkView: View {
     let card: LearningCard
     let theme: CardTheme
     let height: CGFloat
+    let usesCustomSymbol: Bool
+
+    init(
+        card: LearningCard,
+        theme: CardTheme,
+        height: CGFloat,
+        usesCustomSymbol: Bool = false
+    ) {
+        self.card = card
+        self.theme = theme
+        self.height = height
+        self.usesCustomSymbol = usesCustomSymbol
+    }
 
     var body: some View {
         Group {
-            if let artworkName = card.artworkName {
+            if let artworkName = card.artworkName, !usesCustomSymbol {
                 Image(artworkName)
                     .resizable()
                     .scaledToFill()
