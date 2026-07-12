@@ -60,7 +60,8 @@ Step 2 renders one static sample card. Feed navigation, gestures, actions, JSON 
 - Selecting a collection row opens the complete Lesson Detail.
 - Settings provides System, Light, and Dark appearance modes.
 - Feed modes include For You, Random, and Surprise Me.
-- For You prioritizes selected interests while randomizing cards inside the preferred and remaining groups.
+- Every feed mode strictly filters to selected interests.
+- For You and Random reshuffle matching cards; Surprise Me chooses a random matching card first.
 - Surprise Me starts with a topic outside selected interests when possible.
 - A compact header menu changes feed mode or opens interests without occupying a large top area.
 
@@ -80,3 +81,20 @@ Step 2 renders one static sample card. Feed navigation, gestures, actions, JSON 
 - Card content and all per-card learning actions share the same document.
 - The Settings screen identifies the Files app location and filename.
 - Invalid or unsupported documents show an error instead of being silently overwritten.
+
+## Step 19 Collection Priorities and File Access
+
+- Likes, Saved, and Research each provide standard Edit-mode drag reordering.
+- Holding a reorder handle near an edge scrolls longer lists while dragging.
+- Each collection order persists independently in `SwipeMTWData.json`.
+- Settings can preview the live JSON, share or save a copy, and display a selectable full system path.
+
+## Step 20 Import and Continuous Feed
+
+- Settings imports and merges a full SwipeMTW document or a plain card-array JSON file.
+- Imported cards with new IDs append; matching IDs are skipped without modifying existing content or actions.
+- Imported action cards always appear at the bottom of Likes, Saved, and Research without changing existing top priorities.
+- Newly imported topics appear in Interests immediately.
+- The feed shuffles a fresh cycle before reaching its last card and repeats indefinitely.
+- A new cycle avoids repeating the same card at the boundary when multiple cards exist.
+- A bounded buffer preserves recent backward navigation without unbounded memory growth.

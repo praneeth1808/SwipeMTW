@@ -8,6 +8,24 @@ import Foundation
 protocol ProgressStoring {
     func loadProgress() -> [String: UserProgress]
     func saveProgress(_ progress: [String: UserProgress])
+    func loadCollectionOrder() -> CollectionOrder
+    func saveState(
+        progress: [String: UserProgress],
+        collectionOrder: CollectionOrder
+    )
+}
+
+extension ProgressStoring {
+    func loadCollectionOrder() -> CollectionOrder {
+        CollectionOrder()
+    }
+
+    func saveState(
+        progress: [String: UserProgress],
+        collectionOrder: CollectionOrder
+    ) {
+        saveProgress(progress)
+    }
 }
 
 struct UserDefaultsProgressStore: ProgressStoring {

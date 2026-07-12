@@ -68,7 +68,11 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.research)
 
-            SettingsView(settings: settings, dataFileURL: dataFileURL)
+            SettingsView(
+                settings: settings,
+                dataFileURL: dataFileURL,
+                viewModel: viewModel
+            )
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -76,9 +80,6 @@ struct MainTabView: View {
         }
         .modifier(AppAppearanceModifier(appearance: settings.appearance))
         .onChange(of: settings.feedMode) { _, _ in
-            applyFeedPreferences()
-        }
-        .onChange(of: settings.selectedTopics) { _, _ in
             applyFeedPreferences()
         }
     }

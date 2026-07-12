@@ -18,5 +18,11 @@
 - ✅ Step 16 — Animations
 - ✅ Step 17 — Final polish
 - ✅ Step 18 — Files-visible JSON data storage
+- ✅ Step 19 — Persisted collection priorities and data-file access
+- ✅ Step 20 — JSON import/merge and continuous randomized feed
+- ✅ Step 21 — Strict interest filtering
+- ✅ Step 22 — Dynamic JSON interests and direct feed synchronization
+- ✅ Step 23 — Additive-only JSON import
+- ✅ Step 24 — Bottom-only imported collection ordering
 
 All planned and requested implementation steps are complete.

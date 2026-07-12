@@ -11,9 +11,12 @@ final class FeedViewModel: ObservableObject {
     @Published private(set) var cards: [LearningCard]
     @Published private(set) var currentIndex = 0
     @Published private(set) var progressByCardID: [String: UserProgress]
+    @Published private(set) var collectionOrder: CollectionOrder
 
-    private let sourceCards: [LearningCard]
+    private var sourceCards: [LearningCard]
     private let progressStore: ProgressStoring
+    private var feedMode: FeedMode
+    private var selectedTopics: Set<String>
 
     convenience init(
         cards: [LearningCard],
@@ -36,12 +39,17 @@ final class FeedViewModel: ObservableObject {
     ) {
         sourceCards = cards
         self.progressStore = progressStore
+        self.feedMode = feedMode
+        self.selectedTopics = selectedTopics
         progressByCardID = progressStore.loadProgress()
+        collectionOrder = progressStore.loadCollectionOrder()
         self.cards = FeedViewModel.orderedCards(
             from: cards,
             mode: feedMode,
             selectedTopics: selectedTopics
         )
+        reconcileCollectionOrder()
+        ensureNextCardAvailable()
         recordCurrentCardView()
     }
 
@@ -62,23 +70,32 @@ final class FeedViewModel: ObservableObject {
     }
 
     var canShowNextCard: Bool {
-        guard !cards.isEmpty else {
-            return false
-        }
-
-        return currentIndex < cards.index(before: cards.endIndex)
+        !sourceCards.isEmpty
     }
 
     var savedCards: [LearningCard] {
-        sourceCards.filter { progress(for: $0).saved }
+        orderedCollectionCards(
+            sourceCards.filter { progress(for: $0).saved },
+            using: collectionOrder.saved
+        )
     }
 
     var likedCards: [LearningCard] {
-        sourceCards.filter { progress(for: $0).liked }
+        orderedCollectionCards(
+            sourceCards.filter { progress(for: $0).liked },
+            using: collectionOrder.liked
+        )
     }
 
     var researchCards: [LearningCard] {
-        sourceCards.filter { progress(for: $0).research }
+        orderedCollectionCards(
+            sourceCards.filter { progress(for: $0).research },
+            using: collectionOrder.research
+        )
+    }
+
+    var availableTopics: [String] {
+        Array(Set(sourceCards.map(\.topic))).sorted()
     }
 
     func showPreviousCard() {
@@ -95,17 +112,17 @@ final class FeedViewModel: ObservableObject {
             return
         }
 
+        ensureNextCardAvailable()
         currentIndex += 1
+        ensureNextCardAvailable()
+        trimFeedBufferIfNeeded()
         recordCurrentCardView()
     }
 
     func applyFeedPreferences(mode: FeedMode, selectedTopics: Set<String>) {
-        cards = FeedViewModel.orderedCards(
-            from: sourceCards,
-            mode: mode,
-            selectedTopics: selectedTopics
-        )
-        currentIndex = 0
+        feedMode = mode
+        self.selectedTopics = selectedTopics
+        resetFeedForCurrentPreferences()
         recordCurrentCardView()
     }
 
@@ -151,6 +168,61 @@ final class FeedViewModel: ObservableObject {
         }
     }
 
+    func moveLikedCards(from offsets: IndexSet, to destination: Int) {
+        moveCards(
+            likedCards,
+            order: \CollectionOrder.liked,
+            from: offsets,
+            to: destination
+        )
+    }
+
+    func moveSavedCards(from offsets: IndexSet, to destination: Int) {
+        moveCards(
+            savedCards,
+            order: \CollectionOrder.saved,
+            from: offsets,
+            to: destination
+        )
+    }
+
+    func moveResearchCards(from offsets: IndexSet, to destination: Int) {
+        moveCards(
+            researchCards,
+            order: \CollectionOrder.research,
+            from: offsets,
+            to: destination
+        )
+    }
+
+    func importCards(from data: Data) throws -> CardImportResult {
+        guard let dataStore = progressStore as? LocalJSONDataStore else {
+            throw LocalJSONDataStoreError.invalidImport
+        }
+
+        let result = try dataStore.mergeCards(from: data)
+        progressByCardID = dataStore.loadProgress()
+        collectionOrder = dataStore.loadCollectionOrder()
+        sourceCards = result.cards
+        resetFeedForCurrentPreferences()
+        reconcileCollectionOrder()
+        persistState()
+        recordCurrentCardView()
+        return result
+    }
+
+    func reloadCardsFromDataFile() throws -> [String] {
+        guard let dataStore = progressStore as? LocalJSONDataStore else {
+            return availableTopics
+        }
+
+        sourceCards = try dataStore.loadCards()
+        resetFeedForCurrentPreferences()
+        reconcileCollectionOrder()
+        persistState()
+        return availableTopics
+    }
+
     private func card(at index: Int) -> LearningCard? {
         guard cards.indices.contains(index) else {
             return nil
@@ -166,7 +238,131 @@ final class FeedViewModel: ObservableObject {
         var progress = progress(for: card)
         update(&progress)
         progressByCardID[card.id] = progress
-        progressStore.saveProgress(progressByCardID)
+        reconcileCollectionOrder()
+        persistState()
+    }
+
+    private func orderedCollectionCards(
+        _ cards: [LearningCard],
+        using orderedIDs: [String]
+    ) -> [LearningCard] {
+        let positions = Dictionary(
+            uniqueKeysWithValues: orderedIDs.enumerated().map { ($1, $0) }
+        )
+
+        return cards.sorted { first, second in
+            let firstPosition = positions[first.id] ?? Int.max
+            let secondPosition = positions[second.id] ?? Int.max
+
+            if firstPosition == secondPosition {
+                return first.id < second.id
+            }
+
+            return firstPosition < secondPosition
+        }
+    }
+
+    private func moveCards(
+        _ cards: [LearningCard],
+        order keyPath: WritableKeyPath<CollectionOrder, [String]>,
+        from offsets: IndexSet,
+        to destination: Int
+    ) {
+        var ids = cards.map(\.id)
+        let validOffsets = offsets.filter { ids.indices.contains($0) }
+        let movingIDs = validOffsets.sorted().map { ids[$0] }
+
+        for index in validOffsets.sorted(by: >) {
+            ids.remove(at: index)
+        }
+
+        let removedBeforeDestination = validOffsets.filter { $0 < destination }.count
+        let insertionIndex = min(
+            max(destination - removedBeforeDestination, 0),
+            ids.count
+        )
+        ids.insert(contentsOf: movingIDs, at: insertionIndex)
+        collectionOrder[keyPath: keyPath] = ids
+        persistState()
+    }
+
+    private func reconcileCollectionOrder() {
+        collectionOrder.liked = reconciledOrder(
+            collectionOrder.liked,
+            eligibleIDs: sourceCards.filter { progress(for: $0).liked }.map(\.id)
+        )
+        collectionOrder.saved = reconciledOrder(
+            collectionOrder.saved,
+            eligibleIDs: sourceCards.filter { progress(for: $0).saved }.map(\.id)
+        )
+        collectionOrder.research = reconciledOrder(
+            collectionOrder.research,
+            eligibleIDs: sourceCards.filter { progress(for: $0).research }.map(\.id)
+        )
+    }
+
+    private func reconciledOrder(
+        _ existingOrder: [String],
+        eligibleIDs: [String]
+    ) -> [String] {
+        let eligibleSet = Set(eligibleIDs)
+        var seen = Set<String>()
+        let retained = existingOrder.filter {
+            eligibleSet.contains($0) && seen.insert($0).inserted
+        }
+        return retained + eligibleIDs.filter { seen.insert($0).inserted }
+    }
+
+    private func persistState() {
+        progressStore.saveState(
+            progress: progressByCardID,
+            collectionOrder: collectionOrder
+        )
+    }
+
+    private func resetFeedForCurrentPreferences() {
+        cards = FeedViewModel.orderedCards(
+            from: sourceCards,
+            mode: feedMode,
+            selectedTopics: selectedTopics
+        )
+        currentIndex = 0
+        ensureNextCardAvailable()
+    }
+
+    private func ensureNextCardAvailable() {
+        guard !sourceCards.isEmpty else {
+            return
+        }
+
+        while cards.count <= currentIndex + 1 {
+            var nextCycle = FeedViewModel.orderedCards(
+                from: sourceCards,
+                mode: feedMode,
+                selectedTopics: selectedTopics
+            )
+
+            if nextCycle.count > 1,
+               nextCycle.first?.id == cards.last?.id {
+                nextCycle.append(nextCycle.removeFirst())
+            }
+
+            cards.append(contentsOf: nextCycle)
+        }
+    }
+
+    private func trimFeedBufferIfNeeded() {
+        let maximumBufferedCards = 200
+        let retainedPreviousCards = 50
+
+        guard cards.count > maximumBufferedCards,
+              currentIndex > retainedPreviousCards else {
+            return
+        }
+
+        let removalCount = currentIndex - retainedPreviousCards
+        cards.removeFirst(removalCount)
+        currentIndex -= removalCount
     }
 
     private func recordCurrentCardView() {
@@ -185,25 +381,25 @@ final class FeedViewModel: ObservableObject {
         mode: FeedMode,
         selectedTopics: Set<String>
     ) -> [LearningCard] {
+        let filteredCards: [LearningCard]
+
+        if selectedTopics.isEmpty {
+            filteredCards = cards
+        } else {
+            filteredCards = cards.filter { selectedTopics.contains($0.topic) }
+        }
+
         switch mode {
         case .forYou:
-            guard !selectedTopics.isEmpty else {
-                return cards.shuffled()
-            }
-
-            let preferred = cards.filter { selectedTopics.contains($0.topic) }.shuffled()
-            let remaining = cards.filter { !selectedTopics.contains($0.topic) }.shuffled()
-            return preferred + remaining
+            return filteredCards.shuffled()
         case .random:
-            return cards.shuffled()
+            return filteredCards.shuffled()
         case .surpriseMe:
-            let unexpected = cards.filter { !selectedTopics.contains($0.topic) }
-
-            guard let surprise = unexpected.randomElement() else {
-                return cards.shuffled()
+            guard let surprise = filteredCards.randomElement() else {
+                return []
             }
 
-            return [surprise] + cards.filter { $0.id != surprise.id }.shuffled()
+            return [surprise] + filteredCards.filter { $0.id != surprise.id }.shuffled()
         }
     }
 }
