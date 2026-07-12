@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.19
+
+- Added a versioned `SwipeMTWData.json` document in the app's Files-visible Documents directory.
+- Seeded the document from bundled cards only when no existing file is present.
+- Migrated legacy Like, Save, Research, Dislike, Show Again, and viewing progress on first creation.
+- Moved all subsequent card-progress reads and atomic writes to the shared JSON document.
+- Added the document location and filename to Settings.
+- Enabled opening the app's local documents through the iOS Files provider.
+
 ## v0.18
 
 - Added a Likes tab beside Saved using the shared collection layout.

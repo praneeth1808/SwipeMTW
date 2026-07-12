@@ -17,5 +17,6 @@
 - ✅ Step 15 — Settings
 - ✅ Step 16 — Animations
 - ✅ Step 17 — Final polish
+- ✅ Step 18 — Files-visible JSON data storage
 
-All planned implementation steps are complete.
+All planned and requested implementation steps are complete.

@@ -10,9 +10,20 @@ import SwiftUI
 struct ContentView: View {
     private let loadState: CardLoadState
 
-    init(loader: CardLoader = CardLoader()) {
+    init(
+        loader: CardLoader = CardLoader(),
+        legacyProgressStore: UserDefaultsProgressStore = UserDefaultsProgressStore()
+    ) {
         do {
-            loadState = .loaded(try loader.loadCards())
+            let bundledCards = try loader.loadCards()
+            let dataStore = try LocalJSONDataStore(
+                seedCards: bundledCards,
+                legacyProgress: legacyProgressStore.loadProgress()
+            )
+            loadState = .loaded(
+                cards: try dataStore.loadCards(),
+                dataStore: dataStore
+            )
         } catch {
             loadState = .failed(error.localizedDescription)
         }
@@ -20,8 +31,12 @@ struct ContentView: View {
 
     var body: some View {
         switch loadState {
-        case .loaded(let cards):
-            MainTabView(cards: cards)
+        case .loaded(let cards, let dataStore):
+            MainTabView(
+                cards: cards,
+                progressStore: dataStore,
+                dataFileURL: dataStore.fileURL
+            )
         case .failed(let message):
             ContentUnavailableView(
                 "Cards Unavailable",
@@ -33,7 +48,7 @@ struct ContentView: View {
 }
 
 private enum CardLoadState {
-    case loaded([LearningCard])
+    case loaded(cards: [LearningCard], dataStore: LocalJSONDataStore)
     case failed(String)
 }
 

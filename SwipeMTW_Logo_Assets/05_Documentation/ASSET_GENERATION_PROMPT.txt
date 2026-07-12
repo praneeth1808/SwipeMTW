@@ -1,0 +1,27 @@
+Create a production-ready branding asset package from the supplied SwipeMTW reference icon.
+
+SOURCE OF TRUTH
+- Preserve the exact central symbol: a white hourglass merged with a rising zig-zag arrow.
+- Preserve the soft background gradient: warm peach/orange at upper-left, pink through the middle, lavender and blue toward lower-right.
+- Preserve the clean, minimal, premium iOS-app aesthetic.
+- Do not add text, letters, taglines, borders, badges, watermarks, or new symbols.
+- Keep the symbol centered, optically balanced, and legible at 16 px.
+- Maintain consistent stroke weight, smooth curves, subtle depth, and restrained shadowing.
+- Do not distort the hourglass or arrow.
+- Keep all app-icon exports fully opaque (no alpha).
+
+DELIVERABLES
+1. Master app icon: 1024×1024 PNG, RGB, opaque.
+2. Complete Xcode AppIcon.appiconset with Contents.json for iPhone, iPad, and iOS Marketing.
+3. PNG exports at 1024, 512, 256, 180, 167, 152, 128, 120, 87, 80, 76, 64, 60, 58, 40, 32, 29, 20, and 16 px.
+4. Grayscale preview and monochrome approximation.
+5. Dark-background preview.
+6. README with installation instructions and limitations.
+7. Package all files into SwipeMTW_Logo_Assets.zip.
+
+QUALITY CONTROL
+- Use Lanczos or equivalent high-quality downsampling.
+- Verify every PNG opens successfully and matches its declared dimensions.
+- Confirm Contents.json filenames exactly match generated files.
+- Avoid transparency in App Store and Xcode app-icon files.
+- Keep the supplied raster design visually unchanged except for cropping, centering, and resizing.

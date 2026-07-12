@@ -10,13 +10,28 @@ struct MainTabView: View {
     @StateObject private var viewModel: FeedViewModel
     @StateObject private var settings: AppSettings
     @State private var selectedTab: AppTab = .feed
+    private let dataFileURL: URL?
 
     init(cards: [LearningCard]) {
+        self.init(
+            cards: cards,
+            progressStore: UserDefaultsProgressStore(),
+            dataFileURL: nil
+        )
+    }
+
+    init(
+        cards: [LearningCard],
+        progressStore: ProgressStoring,
+        dataFileURL: URL?
+    ) {
         let appSettings = AppSettings(availableTopics: cards.map(\.topic))
+        self.dataFileURL = dataFileURL
         _settings = StateObject(wrappedValue: appSettings)
         _viewModel = StateObject(
             wrappedValue: FeedViewModel(
                 cards: cards,
+                progressStore: progressStore,
                 feedMode: appSettings.feedMode,
                 selectedTopics: appSettings.selectedTopics
             )
@@ -53,7 +68,7 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.research)
 
-            SettingsView(settings: settings)
+            SettingsView(settings: settings, dataFileURL: dataFileURL)
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
