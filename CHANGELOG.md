@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.25
+
+- Ignored imported collection-priority arrays so imports cannot reorder existing lists.
+- Appended newly imported Like, Save, and Research IDs after every existing priority.
+- Preserved the exact existing top order in Likes, Saved, and Research.
+
+## v0.24
+
+- Changed JSON import to strictly additive behavior.
+- Skipped matching card IDs instead of replacing existing card content.
+- Preserved all existing actions and collection priorities during every import.
+- Merged imported progress and order only for genuinely new card IDs.
+- Updated import results to report added and skipped counts clearly.
+
+## v0.23
+
+- Reloaded available interest options from the live JSON whenever Settings opens.
+- Applied interest toggles directly to the active feed instead of relying only on indirect observation.
+- Made For You, Random, and Surprise Me all respect selected-interest filtering.
+- Kept imported and externally edited JSON topics synchronized with Settings choices.
+
+## v0.22
+
+- Changed For You from interest prioritization to strict selected-topic filtering.
+- Kept the filter active across every repeated randomized feed cycle.
+- Clarified that Random uses all topics and Surprise Me intentionally explores outside interests.
+
+## v0.21
+
+- Added Import & Merge JSON in Settings for full data documents and plain card arrays.
+- Merged cards by stable ID while preserving all existing action progress and priorities.
+- Refreshed topic-interest choices immediately after importing new topics.
+- Changed the feed to continuous randomized cycles that repeat without reaching an end.
+- Avoided immediate cycle-boundary duplicates when multiple cards are available.
+
+## v0.20
+
+- Added independently persisted priority ordering for Likes, Saved, and Research.
+- Added Edit-mode drag reordering with list auto-scroll support.
+- Kept Edit visible for every nonempty collection, including a one-card Saved list.
+- Migrated schema-version 1 JSON documents to schema version 2 without losing cards or actions.
+- Added direct JSON preview, sharing/export, and a selectable full path in Settings.
+- Added in-app guidance for revealing the JSON's containing folder in Files.
+
 ## v0.19
 
 - Added a versioned `SwipeMTWData.json` document in the app's Files-visible Documents directory.

@@ -35,9 +35,14 @@ The app's durable learning data lives in one versioned JSON document:
 - `schemaVersion`: Data-file format version used for safe future migrations.
 - `cards`: Complete learning-card content loaded by the feed.
 - `progress`: A dictionary keyed by card ID containing Like, Save, Research, Dislike, Show Again, and viewing state.
+- `collectionOrder`: Independent ordered card-ID lists for Likes, Saved, and Research.
 
 On first launch, SwipeMTW creates `SwipeMTWData.json` in its Documents directory using the bundled cards and any progress previously stored in `UserDefaults`. On later launches, the existing document is loaded and is never replaced by bundled content.
 
 Every progress change reads the current document, updates `progress`, and atomically writes the same file. This keeps Saved, Likes, and Research state alongside the learning content.
+
+Reordering Likes, Saved, or Research updates only that collection's ID list, so each page can have a different learning priority.
+
+The Settings importer accepts either a complete `SwipeMTWData.json` document or a plain JSON array of `LearningCard` objects. Import is additive by `id`: new IDs append and matching IDs are skipped. Existing cards, action progress, and collection priorities are never replaced. A full data document may contribute progress only for genuinely new card IDs. Its priority order is ignored; new action IDs always append after the existing Likes, Saved, and Research order.
 
 With local file sharing enabled, the document is available in Files under **On My iPhone → SwipeMTW → SwipeMTWData.json**.

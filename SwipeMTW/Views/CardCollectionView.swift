@@ -82,21 +82,40 @@ struct CardCollectionView: View {
                         description: Text(kind.emptyDescription)
                     )
                 } else {
-                    List(cards) { card in
-                        Button {
-                            selectedCard = card
-                        } label: {
-                            CardCollectionRow(card: card)
+                    List {
+                        ForEach(cards) { card in
+                            Button {
+                                selectedCard = card
+                            } label: {
+                                CardCollectionRow(card: card)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                        .onMove(perform: moveCards)
                     }
                     .listStyle(.plain)
                 }
             }
             .navigationTitle(kind.title)
+            .toolbar {
+                if !cards.isEmpty {
+                    EditButton()
+                }
+            }
         }
         .fullScreenCover(item: $selectedCard) { card in
             LessonDetailView(card: card, viewModel: viewModel)
+        }
+    }
+
+    private func moveCards(from offsets: IndexSet, to destination: Int) {
+        switch kind {
+        case .liked:
+            viewModel.moveLikedCards(from: offsets, to: destination)
+        case .saved:
+            viewModel.moveSavedCards(from: offsets, to: destination)
+        case .research:
+            viewModel.moveResearchCards(from: offsets, to: destination)
         }
     }
 }

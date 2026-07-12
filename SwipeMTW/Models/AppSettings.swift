@@ -77,7 +77,7 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    let availableTopics: [String]
+    @Published private(set) var availableTopics: [String]
 
     private let defaults: UserDefaults
 
@@ -108,6 +108,22 @@ final class AppSettings: ObservableObject {
             selectedTopics.insert(topic)
         } else if selectedTopics.count > 1 {
             selectedTopics.remove(topic)
+        }
+    }
+
+    func updateAvailableTopics(_ topics: [String]) {
+        let uniqueTopics = Array(Set(topics)).sorted()
+        let previouslySelectedEverything = selectedTopics == Set(availableTopics)
+        availableTopics = uniqueTopics
+
+        if previouslySelectedEverything {
+            selectedTopics = Set(uniqueTopics)
+        } else {
+            selectedTopics = selectedTopics.intersection(Set(uniqueTopics))
+
+            if selectedTopics.isEmpty {
+                selectedTopics = Set(uniqueTopics)
+            }
         }
     }
 }
