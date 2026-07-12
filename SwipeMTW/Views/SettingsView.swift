@@ -10,26 +10,67 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject var viewModel: FeedViewModel
     let dataFileURL: URL?
-    let viewModel: FeedViewModel?
     @State private var previewURL: URL?
     @State private var isImportingJSON = false
     @State private var importMessage = ""
     @State private var isShowingImportResult = false
+    @State private var isConfirmingClear = false
+    @State private var pendingImportData: Data?
+    @State private var importPreview: CardImportPreview?
+    @State private var isChoosingDuplicateStrategy = false
+    @State private var isReviewingDuplicateConflicts = false
 
     init(
         settings: AppSettings,
-        dataFileURL: URL? = nil,
-        viewModel: FeedViewModel? = nil
+        viewModel: FeedViewModel,
+        dataFileURL: URL? = nil
     ) {
         self.settings = settings
-        self.dataFileURL = dataFileURL
         self.viewModel = viewModel
+        self.dataFileURL = dataFileURL
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    NavigationLink {
+                        CardLibraryView(viewModel: viewModel)
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Card Library")
+                                Text("Search and filter \(viewModel.totalCardCount) cards")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "books.vertical")
+                        }
+                    }
+
+                    NavigationLink {
+                        AnalyticsDashboardView(viewModel: viewModel)
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Learning Analytics")
+                                Text("\(viewModel.uniqueVisitedCount) visited · \(viewModel.uniqueReadCount) read")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "chart.xyaxis.line")
+                        }
+                    }
+                } header: {
+                    Text("Progress")
+                } footer: {
+                    Text("Private, on-device insights for learning coverage, topic focus, time, and your next useful action.")
+                }
+
                 Section {
                     Picker("Feed Mode", selection: $settings.feedMode) {
                         ForEach(FeedMode.allCases) { mode in
@@ -64,6 +105,32 @@ struct SettingsView: View {
                     Text("At least one interest remains selected.")
                 }
 
+                if !settings.availableTopics.isEmpty {
+                    Section {
+                        ForEach(settings.availableTopics, id: \.self) { topic in
+                            NavigationLink {
+                                TopicSymbolPickerView(
+                                    topic: topic,
+                                    viewModel: viewModel
+                                )
+                            } label: {
+                                let theme = CardTheme.forTopic(
+                                    topic,
+                                    symbolName: viewModel.symbolName(for: topic),
+                                    colorHex: viewModel.colorHex(for: topic)
+                                )
+
+                                Label(topic, systemImage: theme.symbolName)
+                                    .foregroundStyle(theme.accentColor)
+                            }
+                        }
+                    } header: {
+                        Text("Topic Artwork")
+                    } footer: {
+                        Text("Choose a color and from about \(TopicSymbolCatalog.optionCount) searchable image symbols for every JSON topic. New topics receive a distinct automatic color.")
+                    }
+                }
+
                 Section("Appearance") {
                     Picker("Appearance", selection: $settings.appearance) {
                         ForEach(AppearanceMode.allCases) { mode in
@@ -88,7 +155,13 @@ struct SettingsView: View {
                         Button {
                             isImportingJSON = true
                         } label: {
-                            Label("Import & Merge JSON", systemImage: "square.and.arrow.down")
+                            Label("Import & Check JSON", systemImage: "square.and.arrow.down")
+                        }
+
+                        Button(role: .destructive) {
+                            isConfirmingClear = true
+                        } label: {
+                            Label("Clear All Cards & Actions", systemImage: "trash")
                         }
 
                         LabeledContent("Location", value: "On My iPhone/SwipeMTW")
@@ -109,6 +182,11 @@ struct SettingsView: View {
                         Text("To reveal the folder, tap View JSON, open the file's Info screen, then tap the blue ‘On My iPhone › SwipeMTW’ link under Where.")
                     }
                 }
+
+                Section("Library Summary") {
+                    LabeledContent("Total Cards", value: "\(viewModel.totalCardCount)")
+                    LabeledContent("Topic Categories", value: "\(viewModel.availableTopics.count)")
+                }
             }
             .navigationTitle("Settings")
             .onAppear {
@@ -122,18 +200,67 @@ struct SettingsView: View {
             ) { result in
                 handleImport(result)
             }
-            .alert("JSON Import", isPresented: $isShowingImportResult) {
+            .alert("Data Library", isPresented: $isShowingImportResult) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(importMessage)
+            }
+            .confirmationDialog(
+                "\(importPreview?.duplicateCount ?? 0) duplicate cards found",
+                isPresented: $isChoosingDuplicateStrategy,
+                titleVisibility: .visible
+            ) {
+                Button("Skip Duplicate Content") {
+                    performPendingImport(strategy: .skipDuplicates)
+                }
+                Button("Import as Another Copy") {
+                    performPendingImport(strategy: .importCopies)
+                }
+                Button("Replace Existing Content", role: .destructive) {
+                    performPendingImport(strategy: .replaceExisting)
+                }
+                Button("Review Conflicts") {
+                    isReviewingDuplicateConflicts = true
+                }
+                Button("Cancel", role: .cancel) {
+                    discardPendingImport()
+                }
+            } message: {
+                Text("Duplicates match normalized topic and title. Skipping is the safest default; replacing preserves existing actions and IDs.")
+            }
+            .sheet(isPresented: $isReviewingDuplicateConflicts) {
+                if let importPreview {
+                    DuplicateConflictReviewView(
+                        preview: importPreview,
+                        onChoose: { strategy in
+                            isReviewingDuplicateConflicts = false
+                            performPendingImport(strategy: strategy)
+                        },
+                        onCancel: {
+                            isReviewingDuplicateConflicts = false
+                            discardPendingImport()
+                        }
+                    )
+                }
+            }
+            .confirmationDialog(
+                "Clear the entire SwipeMTW library?",
+                isPresented: $isConfirmingClear,
+                titleVisibility: .visible
+            ) {
+                Button("Clear All Cards & Actions", role: .destructive) {
+                    clearAllData()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently removes every card, action, collection priority, topic appearance, and analytics history from SwipeMTWData.json. The empty file remains ready for a new import.")
             }
         }
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
         do {
-            guard let url = try result.get().first,
-                  let viewModel else {
+            guard let url = try result.get().first else {
                 return
             }
 
@@ -145,22 +272,63 @@ struct SettingsView: View {
             }
 
             let data = try Data(contentsOf: url)
-            let importResult = try viewModel.importCards(from: data)
-            settings.updateAvailableTopics(importResult.cards.map(\.topic))
+            let preview = try viewModel.previewImport(from: data)
+            pendingImportData = data
+            importPreview = preview
+
+            if preview.duplicateCount > 0 {
+                isChoosingDuplicateStrategy = true
+            } else {
+                performPendingImport(strategy: .skipDuplicates)
+            }
+        } catch {
+            importMessage = error.localizedDescription
+            isShowingImportResult = true
+        }
+    }
+
+    private func performPendingImport(strategy: DuplicateImportStrategy) {
+        guard let data = pendingImportData else { return }
+
+        do {
+            let result = try viewModel.importCards(
+                from: data,
+                duplicateStrategy: strategy
+            )
+            settings.updateAvailableTopics(result.cards.map(\.topic))
             applyFeedPreferences()
-            importMessage = "Imported \(importResult.importedCount) cards: \(importResult.addedCount) added and \(importResult.skippedCount) existing IDs skipped. Existing cards and actions were preserved."
+
+            var parts: [String] = []
+            if result.addedCount > 0 {
+                let firstID = result.assignedIDs.first ?? "—"
+                let lastID = result.assignedIDs.last ?? "—"
+                parts.append("Added \(result.addedCount) cards with new IDs \(firstID) through \(lastID)")
+            }
+            if result.replacedCount > 0 {
+                parts.append("replaced \(result.replacedCount) existing cards while preserving their IDs and actions")
+            }
+            if result.skippedDuplicateCount > 0 {
+                parts.append("skipped \(result.skippedDuplicateCount) duplicate cards")
+            }
+            if parts.isEmpty {
+                parts.append("No cards changed")
+            }
+            importMessage = parts.joined(separator: "; ").capitalizedSentence
+                + ". The library now has \(result.cards.count) cards."
         } catch {
             importMessage = error.localizedDescription
         }
 
+        discardPendingImport()
         isShowingImportResult = true
     }
 
-    private func refreshTopicsFromDataFile() {
-        guard let viewModel else {
-            return
-        }
+    private func discardPendingImport() {
+        pendingImportData = nil
+        importPreview = nil
+    }
 
+    private func refreshTopicsFromDataFile() {
         do {
             let topics = try viewModel.reloadCardsFromDataFile()
             settings.updateAvailableTopics(topics)
@@ -172,15 +340,86 @@ struct SettingsView: View {
     }
 
     private func applyFeedPreferences() {
-        viewModel?.applyFeedPreferences(
+        viewModel.applyFeedPreferences(
             mode: settings.feedMode,
             selectedTopics: settings.selectedTopics
         )
+    }
+
+    private func clearAllData() {
+        do {
+            try viewModel.clearAllData()
+            settings.updateAvailableTopics([])
+            importMessage = "All cards, actions, collection priorities, topic appearance, and analytics history were deleted. SwipeMTWData.json is empty and ready for a new import."
+        } catch {
+            importMessage = error.localizedDescription
+        }
+
+        isShowingImportResult = true
+    }
+}
+
+private struct DuplicateConflictReviewView: View {
+    let preview: CardImportPreview
+    let onChoose: (DuplicateImportStrategy) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(preview.conflicts) { conflict in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(conflict.incomingTitle)
+                                .font(.headline)
+                            Text(conflict.incomingTopic)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("Matches existing card ID \(conflict.existingID)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text("\(preview.duplicateCount) of \(preview.importedCount) incoming cards conflict")
+                }
+
+                Section("Choose for all conflicts") {
+                    Button("Skip Duplicate Content") {
+                        onChoose(.skipDuplicates)
+                    }
+                    Button("Import as Another Copy") {
+                        onChoose(.importCopies)
+                    }
+                    Button("Replace Existing Content", role: .destructive) {
+                        onChoose(.replaceExisting)
+                    }
+                }
+            }
+            .navigationTitle("Review Conflicts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+            }
+        }
+    }
+}
+
+private extension String {
+    var capitalizedSentence: String {
+        guard let first else { return self }
+        return first.uppercased() + dropFirst()
     }
 }
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        SettingsView(settings: AppSettings(availableTopics: ["Data Engineering", "Learning Science"]))
+        SettingsView(
+            settings: AppSettings(availableTopics: ["Data Engineering", "Learning Science"]),
+            viewModel: FeedViewModel(cards: [.sample])
+        )
     }
 }

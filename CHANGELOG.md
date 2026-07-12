@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.30
+
+- Added persisted New, Viewed, Understood, Needs Review, and Mastered learning states.
+- Added an end-of-lesson understanding check with Review Again, Mostly Understood, and Mastered responses.
+- Added spaced-repetition scheduling at approximately 1, 3–7, and 28 days based on understanding.
+- Added a caught-up feed state with the next scheduled review date.
+- Added a global Card Library with title search and topic, tag, status, action, reading-time, and sort filters.
+- Added normalized topic-and-title duplicate detection before JSON import.
+- Added Skip Duplicate Content, Import as Another Copy, Replace Existing Content, and Review Conflicts choices.
+- Added learning-loop and reviews-due metrics to Learning Analytics.
+- Migrated existing local JSON documents safely to schema version 5.
+
+## v0.29
+
+- Added persisted topic colors alongside each topic's selected symbol.
+- Added a simple semantic color chooser that avoids used and visually close colors.
+- Applied topic colors to feed artwork, lesson accents, and collection rows.
+- Added on-device tracking for lesson opens, completed reads, lesson time, topic time, app time, and sessions.
+- Added a Learning Analytics dashboard inside Settings with coverage, topic-focus charts, backlog, and career-development prompts.
+- Added a confirmed Reset Statistics action that preserves cards, actions, ordering, and topic appearance.
+- Migrated existing JSON files safely to schema version 4 with default analytics fields.
+
+## v0.28
+
+- Added dynamic artwork settings for every unique topic in the live JSON.
+- Added about 120 categorized and searchable SF Symbol choices per topic.
+- Persisted topic artwork selections in `SwipeMTWData.json` schema version 3.
+- Applied selected artwork across the feed, lessons, and collection rows.
+- Added live total-card and topic-category counts at the end of Settings.
+
+## v0.27
+
+- Ignored every uploaded card ID and generated new sequential collision-free IDs.
+- Allowed repeated imports of the same file to append another complete batch.
+- Remapped imported actions to generated IDs while retaining bottom-only collection ordering.
+- Added a confirmed Clear All Cards & Actions operation.
+- Kept an empty valid JSON document and functional Settings/import flow after clearing.
+
+## v0.26
+
+- Clarified that import has no 50-card limit and duplicate IDs are intentionally skipped.
+- Added the resulting total library count to import results.
+- Added actionable unique-ID examples when every imported card collides.
+
 ## v0.25
 
 - Ignored imported collection-priority arrays so imports cannot reorder existing lists.

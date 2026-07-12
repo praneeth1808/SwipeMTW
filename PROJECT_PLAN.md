@@ -24,5 +24,10 @@
 - ✅ Step 22 — Dynamic JSON interests and direct feed synchronization
 - ✅ Step 23 — Additive-only JSON import
 - ✅ Step 24 — Bottom-only imported collection ordering
+- ✅ Step 25 — Unlimited import reporting and ID-collision guidance
+- ✅ Step 26 — Generated import IDs and clear-all library reset
+- ✅ Step 27 — Dynamic topic artwork and library summary
+- ✅ Step 28 — Topic color themes and career-focused learning analytics
+- ✅ Step 29 — Structured learning loop, spaced repetition, global library search, and duplicate-safe imports
 
 All planned and requested implementation steps are complete.

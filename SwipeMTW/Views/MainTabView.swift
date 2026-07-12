@@ -7,6 +7,7 @@ import Foundation
 import SwiftUI
 
 struct MainTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: FeedViewModel
     @StateObject private var settings: AppSettings
     @State private var selectedTab: AppTab = .feed
@@ -70,8 +71,8 @@ struct MainTabView: View {
 
             SettingsView(
                 settings: settings,
-                dataFileURL: dataFileURL,
-                viewModel: viewModel
+                viewModel: viewModel,
+                dataFileURL: dataFileURL
             )
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
@@ -81,6 +82,19 @@ struct MainTabView: View {
         .modifier(AppAppearanceModifier(appearance: settings.appearance))
         .onChange(of: settings.feedMode) { _, _ in
             applyFeedPreferences()
+        }
+        .onAppear {
+            viewModel.startAppSession()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                viewModel.startAppSession()
+            } else {
+                viewModel.endAppSession()
+            }
+        }
+        .onDisappear {
+            viewModel.endAppSession()
         }
     }
 

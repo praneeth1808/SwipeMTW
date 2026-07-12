@@ -21,24 +21,49 @@ struct CollectionOrder: Codable, Equatable {
     }
 }
 
+struct UsageAnalytics: Codable, Equatable {
+    var totalAppSeconds: Double
+    var topicSeconds: [String: Double]
+    var launchCount: Int
+
+    init(
+        totalAppSeconds: Double = 0,
+        topicSeconds: [String: Double] = [:],
+        launchCount: Int = 0
+    ) {
+        self.totalAppSeconds = totalAppSeconds
+        self.topicSeconds = topicSeconds
+        self.launchCount = launchCount
+    }
+}
+
 struct SwipeMTWDataFile: Codable, Equatable {
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 5
 
     var schemaVersion: Int
     var cards: [LearningCard]
     var progress: [String: UserProgress]
     var collectionOrder: CollectionOrder
+    var topicSymbols: [String: String]
+    var topicColors: [String: String]
+    var analytics: UsageAnalytics
 
     init(
         schemaVersion: Int = currentSchemaVersion,
         cards: [LearningCard],
         progress: [String: UserProgress] = [:],
-        collectionOrder: CollectionOrder = CollectionOrder()
+        collectionOrder: CollectionOrder = CollectionOrder(),
+        topicSymbols: [String: String] = [:],
+        topicColors: [String: String] = [:],
+        analytics: UsageAnalytics = UsageAnalytics()
     ) {
         self.schemaVersion = schemaVersion
         self.cards = cards
         self.progress = progress
         self.collectionOrder = collectionOrder
+        self.topicSymbols = topicSymbols
+        self.topicColors = topicColors
+        self.analytics = analytics
     }
 
     init(from decoder: Decoder) throws {
@@ -53,5 +78,17 @@ struct SwipeMTWDataFile: Codable, Equatable {
             CollectionOrder.self,
             forKey: .collectionOrder
         ) ?? CollectionOrder()
+        topicSymbols = try container.decodeIfPresent(
+            [String: String].self,
+            forKey: .topicSymbols
+        ) ?? [:]
+        topicColors = try container.decodeIfPresent(
+            [String: String].self,
+            forKey: .topicColors
+        ) ?? [:]
+        analytics = try container.decodeIfPresent(
+            UsageAnalytics.self,
+            forKey: .analytics
+        ) ?? UsageAnalytics()
     }
 }

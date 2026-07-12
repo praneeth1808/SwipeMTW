@@ -32,7 +32,32 @@ struct CardImportResult: Equatable {
     let cards: [LearningCard]
     let importedCount: Int
     let addedCount: Int
-    let skippedCount: Int
+    let replacedCount: Int
+    let skippedDuplicateCount: Int
+    let assignedIDs: [String]
+}
+
+enum DuplicateImportStrategy: String, CaseIterable, Identifiable {
+    case skipDuplicates
+    case importCopies
+    case replaceExisting
+
+    var id: String { rawValue }
+}
+
+struct CardDuplicateConflict: Identifiable, Equatable {
+    let id: Int
+    let incomingTopic: String
+    let incomingTitle: String
+    let existingID: String
+    let existingTitle: String
+}
+
+struct CardImportPreview: Equatable {
+    let importedCount: Int
+    let conflicts: [CardDuplicateConflict]
+
+    var duplicateCount: Int { conflicts.count }
 }
 
 struct LocalJSONDataStore: ProgressStoring {
@@ -85,13 +110,7 @@ struct LocalJSONDataStore: ProgressStoring {
     }
 
     func loadCards() throws -> [LearningCard] {
-        let cards = try readDocument().cards
-
-        guard !cards.isEmpty else {
-            throw LocalJSONDataStoreError.noCards
-        }
-
-        return cards
+        try readDocument().cards
     }
 
     func loadProgress() -> [String: UserProgress] {
@@ -100,6 +119,18 @@ struct LocalJSONDataStore: ProgressStoring {
 
     func loadCollectionOrder() -> CollectionOrder {
         (try? readDocument().collectionOrder) ?? CollectionOrder()
+    }
+
+    func loadTopicSymbols() -> [String: String] {
+        (try? readDocument().topicSymbols) ?? [:]
+    }
+
+    func loadTopicColors() -> [String: String] {
+        (try? readDocument().topicColors) ?? [:]
+    }
+
+    func loadAnalytics() -> UsageAnalytics {
+        (try? readDocument().analytics) ?? UsageAnalytics()
     }
 
     func saveProgress(_ progress: [String: UserProgress]) {
@@ -126,19 +157,77 @@ struct LocalJSONDataStore: ProgressStoring {
         }
     }
 
-    func mergeCards(from data: Data) throws -> CardImportResult {
-        let importedCards: [LearningCard]
-        let importedDocument: SwipeMTWDataFile?
-
-        if let document = try? Self.decoder.decode(SwipeMTWDataFile.self, from: data) {
-            importedCards = document.cards
-            importedDocument = document
-        } else if let cards = try? Self.decoder.decode([LearningCard].self, from: data) {
-            importedCards = cards
-            importedDocument = nil
-        } else {
-            throw LocalJSONDataStoreError.invalidImport
+    func saveTopicSymbols(_ topicSymbols: [String: String]) {
+        do {
+            var document = try readDocument()
+            document.topicSymbols = topicSymbols
+            try writeDocument(document)
+        } catch {
+            assertionFailure("Unable to save topic artwork: \(error.localizedDescription)")
         }
+    }
+
+    func saveTopicColors(_ topicColors: [String: String]) {
+        do {
+            var document = try readDocument()
+            document.topicColors = topicColors
+            try writeDocument(document)
+        } catch {
+            assertionFailure("Unable to save topic colors: \(error.localizedDescription)")
+        }
+    }
+
+    func saveAnalytics(_ analytics: UsageAnalytics) {
+        do {
+            var document = try readDocument()
+            document.analytics = analytics
+            try writeDocument(document)
+        } catch {
+            assertionFailure("Unable to save analytics: \(error.localizedDescription)")
+        }
+    }
+
+    func previewImport(from data: Data) throws -> CardImportPreview {
+        let (importedCards, _) = try decodedImport(from: data)
+        guard !importedCards.isEmpty else {
+            throw LocalJSONDataStoreError.noCards
+        }
+
+        let document = try readDocument()
+        var knownCardsByKey = Dictionary(
+            document.cards.map { (contentKey(for: $0), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var conflicts: [CardDuplicateConflict] = []
+
+        for (index, card) in importedCards.enumerated() {
+            let key = contentKey(for: card)
+            if let existing = knownCardsByKey[key] {
+                conflicts.append(
+                    CardDuplicateConflict(
+                        id: index,
+                        incomingTopic: card.topic,
+                        incomingTitle: card.title,
+                        existingID: existing.id,
+                        existingTitle: existing.title
+                    )
+                )
+            } else {
+                knownCardsByKey[key] = card
+            }
+        }
+
+        return CardImportPreview(
+            importedCount: importedCards.count,
+            conflicts: conflicts
+        )
+    }
+
+    func mergeCards(
+        from data: Data,
+        duplicateStrategy: DuplicateImportStrategy = .skipDuplicates
+    ) throws -> CardImportResult {
+        let (importedCards, importedDocument) = try decodedImport(from: data)
 
         guard !importedCards.isEmpty else {
             throw LocalJSONDataStoreError.noCards
@@ -146,74 +235,105 @@ struct LocalJSONDataStore: ProgressStoring {
 
         var document = try readDocument()
         var mergedCards = document.cards
-        var positions: [String: Int] = [:]
-
-        for (index, card) in mergedCards.enumerated() where positions[card.id] == nil {
-            positions[card.id] = index
-        }
-        var addedCount = 0
-        var skippedCount = 0
-        var addedIDs = Set<String>()
+        var existingIDs = Set(mergedCards.map(\.id))
+        var cardIndexByContentKey = Dictionary(
+            mergedCards.enumerated().map { (contentKey(for: $1), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var nextNumericID = mergedCards.compactMap { numericSuffix(in: $0.id) }.max() ?? 0
+        var assignedIDs: [String] = []
+        var replacedCount = 0
+        var skippedDuplicateCount = 0
 
         for card in importedCards {
-            if positions[card.id] != nil {
-                skippedCount += 1
-            } else {
-                positions[card.id] = mergedCards.count
-                mergedCards.append(card)
-                addedIDs.insert(card.id)
-                addedCount += 1
+            let key = contentKey(for: card)
+
+            if let existingIndex = cardIndexByContentKey[key] {
+                switch duplicateStrategy {
+                case .skipDuplicates:
+                    skippedDuplicateCount += 1
+                    continue
+                case .replaceExisting:
+                    let existingID = mergedCards[existingIndex].id
+                    mergedCards[existingIndex] = card.replacingID(with: existingID)
+                    replacedCount += 1
+                    continue
+                case .importCopies:
+                    break
+                }
+            }
+
+            repeat {
+                nextNumericID += 1
+            } while existingIDs.contains(String(nextNumericID))
+
+            let assignedID = String(nextNumericID)
+            existingIDs.insert(assignedID)
+            assignedIDs.append(assignedID)
+            mergedCards.append(card.replacingID(with: assignedID))
+            if cardIndexByContentKey[key] == nil {
+                cardIndexByContentKey[key] = mergedCards.count - 1
+            }
+
+            if let importedProgress = importedDocument?.progress[card.id] {
+                let remappedProgress = importedProgress.replacingCardID(with: assignedID)
+                document.progress[assignedID] = remappedProgress
+
+                if remappedProgress.liked {
+                    document.collectionOrder.liked.append(assignedID)
+                }
+                if remappedProgress.saved {
+                    document.collectionOrder.saved.append(assignedID)
+                }
+                if remappedProgress.research {
+                    document.collectionOrder.research.append(assignedID)
+                }
             }
         }
 
         document.cards = mergedCards
-
-        if let importedDocument {
-            for id in addedIDs {
-                if let importedProgress = importedDocument.progress[id] {
-                    document.progress[id] = importedProgress
-                }
-            }
-
-            let addedIDsInImportOrder = importedCards
-                .map(\.id)
-                .filter { addedIDs.contains($0) }
-
-            appendNewActionIDs(
-                addedIDsInImportOrder.filter { importedDocument.progress[$0]?.liked == true },
-                into: &document.collectionOrder.liked,
-            )
-            appendNewActionIDs(
-                addedIDsInImportOrder.filter { importedDocument.progress[$0]?.saved == true },
-                into: &document.collectionOrder.saved,
-            )
-            appendNewActionIDs(
-                addedIDsInImportOrder.filter { importedDocument.progress[$0]?.research == true },
-                into: &document.collectionOrder.research,
-            )
-        }
-
         try writeDocument(document)
 
         return CardImportResult(
             cards: mergedCards,
             importedCount: importedCards.count,
-            addedCount: addedCount,
-            skippedCount: skippedCount
+            addedCount: assignedIDs.count,
+            replacedCount: replacedCount,
+            skippedDuplicateCount: skippedDuplicateCount,
+            assignedIDs: assignedIDs
         )
     }
 
-    private func appendNewActionIDs(
-        _ importedIDs: [String],
-        into existingOrder: inout [String]
-    ) {
-        var existingIDs = Set(existingOrder)
+    func clearAllData() throws {
+        try writeDocument(SwipeMTWDataFile(cards: []))
+    }
 
-        for id in importedIDs {
-            if existingIDs.insert(id).inserted {
-                existingOrder.append(id)
-            }
+    private func numericSuffix(in id: String) -> Int? {
+        let suffix = id.reversed().prefix { $0.isNumber }.reversed()
+        return suffix.isEmpty ? nil : Int(String(suffix))
+    }
+
+    private func decodedImport(from data: Data) throws -> ([LearningCard], SwipeMTWDataFile?) {
+        if let document = try? Self.decoder.decode(SwipeMTWDataFile.self, from: data) {
+            return (document.cards, document)
         }
+        if let cards = try? Self.decoder.decode([LearningCard].self, from: data) {
+            return (cards, nil)
+        }
+        throw LocalJSONDataStoreError.invalidImport
+    }
+
+    private func contentKey(for card: LearningCard) -> String {
+        normalized(card.topic) + "|" + normalized(card.title)
+    }
+
+    private func normalized(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     func readDocument() throws -> SwipeMTWDataFile {
@@ -252,5 +372,44 @@ struct LocalJSONDataStore: ProgressStoring {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder
+    }
+}
+
+private extension LearningCard {
+    func replacingID(with id: String) -> LearningCard {
+        LearningCard(
+            id: id,
+            topic: topic,
+            title: title,
+            summary: summary,
+            keyIdea: keyIdea,
+            example: example,
+            content: content,
+            estimatedMinutes: estimatedMinutes,
+            tags: tags,
+            artworkName: artworkName
+        )
+    }
+}
+
+private extension UserProgress {
+    func replacingCardID(with cardID: String) -> UserProgress {
+        UserProgress(
+            cardID: cardID,
+            liked: liked,
+            saved: saved,
+            disliked: disliked,
+            research: research,
+            showAgain: showAgain,
+            viewCount: viewCount,
+            lastViewed: lastViewed,
+            openCount: openCount,
+            completedReadCount: completedReadCount,
+            totalReadSeconds: totalReadSeconds,
+            lastOpened: lastOpened,
+            learningStatus: learningStatus,
+            lastAssessment: lastAssessment,
+            nextReviewDate: nextReviewDate
+        )
     }
 }
