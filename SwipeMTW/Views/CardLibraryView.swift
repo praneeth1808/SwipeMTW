@@ -117,7 +117,7 @@ struct CardLibraryView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(card.title)
+                    InlineMarkdownText(source: card.title)
                         .font(.headline)
                     Spacer(minLength: 6)
                     Label(progress.learningStatus.title, systemImage: progress.learningStatus.systemImage)

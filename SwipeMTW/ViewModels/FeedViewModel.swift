@@ -128,11 +128,18 @@ final class FeedViewModel: ObservableObject {
     }
 
     var hasCardsAwaitingReview: Bool {
-        !sourceCards.isEmpty && cards.isEmpty
+        !sourceCards.isEmpty && cards.isEmpty && !needsInterestSelection
+    }
+
+    var needsInterestSelection: Bool {
+        feedMode == .forYou && selectedTopics.isEmpty && !sourceCards.isEmpty
     }
 
     var nextScheduledReviewDate: Date? {
-        sourceCards.compactMap { progress(for: $0).nextReviewDate }.min()
+        let relevantCards = feedMode == .forYou
+            ? sourceCards.filter { selectedTopics.contains($0.topic) }
+            : sourceCards
+        return relevantCards.compactMap { progress(for: $0).nextReviewDate }.min()
     }
 
     var reviewsDueCount: Int {
@@ -674,10 +681,11 @@ final class FeedViewModel: ObservableObject {
     ) -> [LearningCard] {
         let filteredCards: [LearningCard]
 
-        if selectedTopics.isEmpty {
-            filteredCards = cards
-        } else {
+        switch mode {
+        case .forYou:
             filteredCards = cards.filter { selectedTopics.contains($0.topic) }
+        case .random, .surpriseMe:
+            filteredCards = cards
         }
 
         let dueCards = filteredCards.filter { card in
@@ -693,7 +701,10 @@ final class FeedViewModel: ObservableObject {
         case .random:
             return dueCards.shuffled()
         case .surpriseMe:
-            guard let surprise = dueCards.randomElement() else {
+            let unexpectedCards = dueCards.filter {
+                !selectedTopics.contains($0.topic)
+            }
+            guard let surprise = (unexpectedCards.isEmpty ? dueCards : unexpectedCards).randomElement() else {
                 return []
             }
 

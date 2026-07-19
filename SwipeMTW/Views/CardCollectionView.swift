@@ -146,10 +146,10 @@ private struct CardCollectionRow: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(theme.accentColor)
 
-                Text(card.title)
+                InlineMarkdownText(source: card.title)
                     .font(.headline)
 
-                Text(card.summary)
+                InlineMarkdownText(source: card.summary)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)

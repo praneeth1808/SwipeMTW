@@ -29,5 +29,7 @@
 - ✅ Step 27 — Dynamic topic artwork and library summary
 - ✅ Step 28 — Topic color themes and career-focused learning analytics
 - ✅ Step 29 — Structured learning loop, spaced repetition, global library search, and duplicate-safe imports
+- ✅ Step 30 — Markdown rendering for JSON card content
+- ✅ Step 31 — Distinct feed modes and bulk interest controls
 
 All planned and requested implementation steps are complete.
