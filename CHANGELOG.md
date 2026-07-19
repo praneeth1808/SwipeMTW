@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.32
+
+- Made For You strictly use selected interests.
+- Made Random ignore interests and shuffle due cards from every topic.
+- Made Surprise Me ignore filtering while starting outside selected interests when possible.
+- Added Select All and Clear All interest controls with persisted empty selection.
+- Added selected-topic counts, topic search for larger libraries, and mode-aware guidance.
+- Added a dedicated empty-feed message when For You has no selected interests.
+
+## v0.31
+
+- Added native Markdown rendering for text stored directly in card JSON strings.
+- Added block styling for headings, unordered and ordered lists, quotes, dividers, and fenced code.
+- Added inline styling for bold, italic, links, and inline code.
+- Applied compact Markdown rendering to feed cards, Card Library, Likes, Saved, and Research.
+- Kept malformed Markdown readable through safe partial parsing and plain-text fallback.
+
 ## v0.30
 
 - Added persisted New, Viewed, Understood, Needs Review, and Mastered learning states.

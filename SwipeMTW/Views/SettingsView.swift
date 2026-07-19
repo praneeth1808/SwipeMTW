@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var importPreview: CardImportPreview?
     @State private var isChoosingDuplicateStrategy = false
     @State private var isReviewingDuplicateConflicts = false
+    @State private var interestSearchText = ""
 
     init(
         settings: AppSettings,
@@ -83,11 +84,34 @@ struct SettingsView: View {
                 } header: {
                     Text("Feed Mode")
                 } footer: {
-                    Text("Every mode uses only selected interests. For You and Random reshuffle matches; Surprise Me chooses an unexpected match first.")
+                    Text(settings.feedMode.description)
                 }
 
                 Section {
-                    ForEach(settings.availableTopics, id: \.self) { topic in
+                    HStack(spacing: 12) {
+                        Button("Select All") {
+                            settings.selectAllTopics()
+                            applyFeedPreferences()
+                        }
+                        .disabled(settings.selectedTopics.count == settings.availableTopics.count)
+
+                        Spacer()
+
+                        Button("Clear All", role: .destructive) {
+                            settings.clearAllTopics()
+                            applyFeedPreferences()
+                        }
+                        .disabled(settings.selectedTopics.isEmpty)
+                    }
+                    .buttonStyle(.borderless)
+
+                    if settings.availableTopics.count > 8 {
+                        TextField("Search topics", text: $interestSearchText)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+
+                    ForEach(filteredInterestTopics, id: \.self) { topic in
                         Toggle(
                             topic,
                             isOn: Binding(
@@ -99,10 +123,22 @@ struct SettingsView: View {
                             )
                         )
                     }
+
+                    if filteredInterestTopics.isEmpty, !interestSearchText.isEmpty {
+                        Label("No matching topics", systemImage: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                    }
                 } header: {
-                    Text("Interests")
+                    HStack {
+                        Text("Interests")
+                        Spacer()
+                        Text("\(settings.selectedTopics.count) of \(settings.availableTopics.count)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textCase(nil)
+                    }
                 } footer: {
-                    Text("At least one interest remains selected.")
+                    Text(interestFooter)
                 }
 
                 if !settings.availableTopics.isEmpty {
@@ -346,6 +382,24 @@ struct SettingsView: View {
         )
     }
 
+    private var filteredInterestTopics: [String] {
+        guard !interestSearchText.isEmpty else {
+            return settings.availableTopics
+        }
+        return settings.availableTopics.filter {
+            $0.localizedCaseInsensitiveContains(interestSearchText)
+        }
+    }
+
+    private var interestFooter: String {
+        if settings.feedMode == .forYou {
+            return settings.selectedTopics.isEmpty
+                ? "For You is paused until you select an interest. Random and Surprise Me still use every topic."
+                : "For You uses these selected topics. Random and Surprise Me ignore this filter."
+        }
+        return "These choices are saved for For You. \(settings.feedMode.title) currently uses every topic."
+    }
+
     private func clearAllData() {
         do {
             try viewModel.clearAllData()
@@ -370,7 +424,7 @@ private struct DuplicateConflictReviewView: View {
                 Section {
                     ForEach(preview.conflicts) { conflict in
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(conflict.incomingTitle)
+                            InlineMarkdownText(source: conflict.incomingTitle)
                                 .font(.headline)
                             Text(conflict.incomingTopic)
                                 .font(.subheadline)

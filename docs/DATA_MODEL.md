@@ -17,6 +17,23 @@ When `artworkName` is absent, the feed uses its default topic artwork treatment.
 
 Typography, font sizes, spacing, and animation values are presentation concerns and remain in SwiftUI. User-selected topic theme colors are stored separately from card content.
 
+### Markdown in card text
+
+Text remains inside the JSON file; separate `.md` files are not required. The `title`, `summary`, `keyIdea`, `example`, and `content` strings may contain Markdown. Full lesson content supports headings, bullets, numbered lists, quotes, dividers, fenced code, bold, italic, inline code, and links.
+
+JSON must escape line breaks as `\n`. For example:
+
+````json
+{
+  "title": "**Partition Pruning**",
+  "summary": "Read only the **relevant** partitions.",
+  "keyIdea": "Filter using the `partition_key` column.",
+  "content": "## Why it matters\n\nPartition pruning reduces scanned data.\n\n### Checklist\n\n- Filter the partition column\n- Avoid wrapping it in a function\n- Confirm the query plan\n\n## Example\n\n```sql\nSELECT * FROM events\nWHERE event_date = '2026-07-18';\n```"
+}
+````
+
+Feed and collection previews use compact Markdown: inline formatting is retained, heading markers are removed, and list markers become readable bullets. The opened lesson displays the complete block structure.
+
 ## UserProgress
 
 - `cardID`: Learning card associated with the progress.

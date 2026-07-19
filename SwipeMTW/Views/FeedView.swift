@@ -38,6 +38,9 @@ struct FeedView: View {
     }
 
     private var emptyFeedDescription: String {
+        if viewModel.needsInterestSelection {
+            return "Choose at least one interest in Settings, or switch to Random or Surprise Me to use every topic."
+        }
         if let nextReviewDate = viewModel.nextScheduledReviewDate,
            viewModel.hasCardsAwaitingReview {
             return "Your next scheduled review is \(nextReviewDate.formatted(date: .abbreviated, time: .shortened))."
@@ -291,12 +294,12 @@ private struct FeedCardContent: View {
         VStack(alignment: .leading, spacing: 12) {
             topicLabel
 
-            Text(card.title)
+            InlineMarkdownText(source: card.title)
                 .font(.largeTitle.bold())
                 .lineLimit(2)
                 .minimumScaleFactor(0.85)
 
-            Text(card.summary)
+            InlineMarkdownText(source: card.summary)
                 .font(.title3)
                 .foregroundColor(.secondary)
                 .lineLimit(3)
@@ -339,7 +342,7 @@ private struct FeedCardContent: View {
                     .tracking(1.5)
                     .foregroundColor(accentColor)
 
-                Text(card.keyIdea)
+                InlineMarkdownText(source: card.keyIdea)
                     .font(.body)
                     .lineLimit(3)
             }
@@ -360,7 +363,7 @@ private struct FeedCardContent: View {
                     .tracking(1.5)
                     .foregroundColor(accentColor)
 
-                Text(example)
+                InlineMarkdownText(source: example)
                     .font(.callout.monospaced())
                     .lineLimit(2)
             }

@@ -35,6 +35,17 @@ enum FeedMode: String, CaseIterable, Identifiable {
             "sparkles"
         }
     }
+
+    var description: String {
+        switch self {
+        case .forYou:
+            "Uses only the interests you select below."
+        case .random:
+            "Shuffles due cards from every topic, ignoring interest selections."
+        case .surpriseMe:
+            "Uses every topic and starts outside your selected interests when possible."
+        }
+    }
 }
 
 enum AppearanceMode: String, CaseIterable, Identifiable {
@@ -93,10 +104,6 @@ final class AppSettings: ObservableObject {
         } else {
             selectedTopics = Set(uniqueTopics)
         }
-
-        if selectedTopics.isEmpty {
-            selectedTopics = Set(uniqueTopics)
-        }
     }
 
     func setTopic(_ topic: String, isSelected: Bool) {
@@ -106,24 +113,29 @@ final class AppSettings: ObservableObject {
 
         if isSelected {
             selectedTopics.insert(topic)
-        } else if selectedTopics.count > 1 {
+        } else {
             selectedTopics.remove(topic)
         }
     }
 
+    func selectAllTopics() {
+        selectedTopics = Set(availableTopics)
+    }
+
+    func clearAllTopics() {
+        selectedTopics = []
+    }
+
     func updateAvailableTopics(_ topics: [String]) {
         let uniqueTopics = Array(Set(topics)).sorted()
-        let previouslySelectedEverything = selectedTopics == Set(availableTopics)
+        let previouslySelectedEverything = !availableTopics.isEmpty
+            && selectedTopics == Set(availableTopics)
         availableTopics = uniqueTopics
 
         if previouslySelectedEverything {
             selectedTopics = Set(uniqueTopics)
         } else {
             selectedTopics = selectedTopics.intersection(Set(uniqueTopics))
-
-            if selectedTopics.isEmpty {
-                selectedTopics = Set(uniqueTopics)
-            }
         }
     }
 }

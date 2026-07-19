@@ -60,9 +60,9 @@ Step 2 renders one static sample card. Feed navigation, gestures, actions, JSON 
 - Selecting a collection row opens the complete Lesson Detail.
 - Settings provides System, Light, and Dark appearance modes.
 - Feed modes include For You, Random, and Surprise Me.
-- Every feed mode strictly filters to selected interests.
-- For You and Random reshuffle matching cards; Surprise Me chooses a random matching card first.
-- Surprise Me starts with a topic outside selected interests when possible.
+- For You strictly filters to selected interests.
+- Random ignores interests and reshuffles due cards from every topic.
+- Surprise Me uses every topic and starts outside selected interests when possible.
 - A compact header menu changes feed mode or opens interests without occupying a large top area.
 
 ## Steps 16–17 Motion and Final Polish
@@ -130,3 +130,19 @@ Step 2 renders one static sample card. Feed navigation, gestures, actions, JSON 
 - Filters cover topic, tag, learning status, action, reading time, newest, least/most viewed, and recently opened.
 - Imports detect content duplicates using normalized topic plus title before changing the local file.
 - Skip Duplicate Content is the safe default. Import as Another Copy, Replace Existing Content, and Review Conflicts remain explicit alternatives.
+
+## Step 30 Markdown Card Content
+
+- JSON strings render Markdown directly; content authors do not manage separate Markdown files.
+- Opened lessons display a clear hierarchy for headings, paragraphs, lists, quotes, dividers, links, and code blocks.
+- Bold, italic, and inline code remain visible in both lessons and compact feed previews.
+- Feed and collection rows remove block markers such as `##` while retaining their readable text.
+- Invalid or incomplete Markdown falls back to partially parsed or plain text instead of hiding content.
+
+## Step 31 Feed Modes and Interest Controls
+
+- For You is the focused mode and pauses with clear guidance when no interests are selected.
+- Random and Surprise Me remain usable with zero selected interests because both use every topic.
+- Interests provide Select All and Clear All shortcuts plus a live selected-count summary.
+- Libraries with more than eight topics show topic search; an empty search result gets an explicit message.
+- Mode descriptions and interest footers explain immediately whether the current mode uses the saved interest choices.

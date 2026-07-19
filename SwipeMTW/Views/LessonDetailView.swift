@@ -81,10 +81,10 @@ struct LessonDetailView: View {
                     .tracking(2)
                     .foregroundStyle(theme.accentColor)
 
-                Text(card.title)
+                InlineMarkdownText(source: card.title)
                     .font(.largeTitle.bold())
 
-                Text(card.summary)
+                InlineMarkdownText(source: card.summary)
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -100,10 +100,10 @@ struct LessonDetailView: View {
                     .tracking(1.5)
                     .foregroundStyle(theme.accentColor)
 
-                Text(card.content)
-                    .font(.body)
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
+                MarkdownContentView(
+                    source: card.content,
+                    accentColor: theme.accentColor
+                )
                     .textSelection(.enabled)
             }
 
@@ -188,7 +188,7 @@ struct LessonDetailView: View {
                 .tracking(1.5)
                 .foregroundStyle(theme.accentColor)
 
-            Text(card.keyIdea)
+            InlineMarkdownText(source: card.keyIdea)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -206,9 +206,11 @@ struct LessonDetailView: View {
                     .tracking(1.5)
                     .foregroundStyle(theme.accentColor)
 
-                Text(example)
-                    .font(.callout.monospaced())
-                    .fixedSize(horizontal: false, vertical: true)
+                MarkdownContentView(
+                    source: example,
+                    accentColor: theme.accentColor,
+                    baseFont: .callout.monospaced()
+                )
                     .textSelection(.enabled)
             }
             .padding(18)
